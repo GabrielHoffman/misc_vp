@@ -5,6 +5,7 @@
 library(variancePartition)
 
 # load calcVarPart() for glm fit
+# must load variancePartition first
 source("https://raw.githubusercontent.com/GabrielHoffman/misc_vp/master/calcVarPart.R")
 
 # geta dataset with two categories
