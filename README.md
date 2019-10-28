@@ -3,7 +3,9 @@
 
 ```r
 library(variancePartition)
-source("/Users/gabrielhoffman/workspace/repos/misc_vp/calcVarPart.R")
+
+# load calcVarPart() for glm fit
+source("https://raw.githubusercontent.com/GabrielHoffman/misc_vp/master/calcVarPart.R")
 
 # geta dataset with two categories
 data = iris[iris$Species %in% c("virginica", "versicolor"),]
