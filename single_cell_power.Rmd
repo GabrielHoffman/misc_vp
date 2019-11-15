@@ -1,0 +1,148 @@
+---
+title: "Power for single cell grant"
+subtitle: 'for Panos'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+documentclass: article
+output: 
+  html_document:
+  toc: true
+  smart: false
+---
+
+
+<!---
+
+# laptop
+rmarkdown::render("/Users/gabrielhoffman/workspace/repos/misc_vp/single_cell_power.Rmd", output_dir='./', intermediates_dir='./'); 
+system("cat single_cell_power.html | grep -v 'Found more than one class' | grep -v 'PythonEmbedInR' > single_cell_power2.html")
+
+
+--->
+
+```{r load.packages, echo=FALSE, message=FALSE, results='hide'}
+library(ggplot2)
+library(data.table)
+```
+
+```{r knitr, echo=FALSE}
+suppressPackageStartupMessages(library(knitr))
+options(xtable.type="html")
+
+knitr::opts_chunk$set(
+  echo=TRUE,
+  warning=FALSE,
+  message=TRUE,
+  error = FALSE,
+  tidy = FALSE,
+  cache = FALSE,
+  cache.lazy = FALSE,
+  dev = c("png", "pdf"), 
+  fig.width=7, fig.height=7)
+
+options(markdown.HTML.stylesheet = 'css/custom.css')
+```
+
+
+# Experimental set up
+
+10K genes
+270 experiments
+
+at 80% power, 
+
+3 treatments
+
+3 time points
+
+3 regions
+
+10 individuals
+
+
+The combined experiment comprises 3 treatments, 3 brain region, 3 time point each for 5 male and 5 female animals.  This corresponds to 270 single-cell cell experiments, each with 10,000 cells to give a total of 2.7 million single cell observations.  This study involves a complex repeated measure design where each represntative animal is observed in 3 brain regions but also in multiple cell clusters per experiment.  Therefore, although each gene is measured 2.7 million times, strong correlation between measurements in the same cell cluster and same brain region of course means that the effective sample size is much smaller.  We have experience generating and analysing such complex repeated measures datasets.  We have designed the variancePartition software (Hoffman, and Schadt 2016) to perform exploratory data analysis and quantify the fraction of expression variation attributable to each source of variation (i.e. treatment, brain region, etc).  We have also developed method dream (Hoffman and Roussos, 2019) to applies linear mixed models to the differential expression problem in transfriptomic data.  We are developing an extension to dream that initially summarizes both the mean and variance of expression for each gene for each cell cluster in order to scale to large single cell datasets.  The extension to dream then combines both the expression mean and variance for each gene and each cell clutser in a test of differential expression in order to propogate the variation in heterogenity within each cluster to downstream analysis to protect against false positive findings.      
+
+# Power to identify differences in proportion
+```{r}
+n_tests = 20
+n_cells = 20000
+
+res1 = lapply( seq(1, n_cells, by = 10), function(N){
+	res = power.prop.test( N, p1=.01, p2=.05, sig.level = 0.05/n_tests)
+	data.frame(N=N, power= res$power, delta="1% to 5%")
+	})
+res1 = do.call("rbind", res1)
+
+res2 = lapply( seq(1, n_cells, by = 10), function(N){
+	res = power.prop.test( N, p1=.001, p2=.005, sig.level = 0.05/n_tests)
+	data.frame(N=N, power= res$power, delta="0.1% to 0.5%")
+	})
+res2 = do.call("rbind", res2)
+
+
+res3 = lapply( seq(1, n_cells, by = 10), function(N){
+	res = power.prop.test( N, p1=.00001, p2=.001, sig.level = 0.05/n_tests)
+	data.frame(N=N, power= res$power, delta="0.001% to 0.1%")
+	})
+res3 = do.call("rbind", res3)
+
+res = data.table(rbind(res1, res2, res3))
+
+ggplot(res, aes(N, power, color=delta)) + geom_line(size=1.2) + theme_bw(15) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + xlab("# of cells") + ggtitle("Power to detect changes in cell composition") + ylim(0, 1)
+```
+
+## Get sample size to get 80% power
+```{r, results="asis", echo=FALSE}
+# Sample size required to get 80% power
+tab = res[,.SD[min(which(power>.80)),],by=delta]
+print(xtable(tab, type="html"), include.rownames=FALSE)
+```
+
+
+# Power to detect treatment effect
+
+```{r, fig.width=20}
+
+n_tests = 10000
+
+res1 = lapply( seq(0, 5, length.out=1000), function(delta){
+	res = power.t.test( n=10, delta=delta, sig.level = 0.05/n_tests)
+	data.frame(power= res$power, delta, Test = "Compare 10v10 at single time point, single brain region"	)
+	})
+res1 = do.call("rbind", res1)
+
+
+res2 = lapply( seq(0, 5, length.out=1000), function(delta){
+	res = power.t.test( n=30, delta=delta, sig.level = 0.05/n_tests)
+	data.frame( power= res$power, delta, Test = "Compare 30v30 at at single time point, combining brain region"	)
+	})
+res2 = do.call("rbind", res2)
+
+
+res3 = lapply( seq(0, 5, length.out=1000), function(delta){
+	res = power.t.test( n=30*.6, delta=delta, sig.level = 0.05/n_tests)
+	data.frame( power= res$power, delta, Test = "Compare 30v30 at at single time point, combining brain regions that have 40% effect"	)
+	})
+res3 = do.call("rbind", res3)
+
+
+res = data.table(rbind(res1, res2, res3))
+
+ggplot(res, aes(delta, power, color=Test)) + geom_line(size=2) + theme_bw(30) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("fold change") 
+```
+In the 3rd example, we use all 3 brain regions but assume that variance across brain regions explain 40% of variance.  This leaves 60% of variance exlained by difference in treatment, so effect sample size is N*0.6.
+
+
+## Get sample size to get 80% power
+```{r, results="asis", echo=FALSE}
+# Sample size required to get 80% power
+tab = res[,.SD[min(which(power>.80)),],by=Test]
+print(xtable(tab, type="html"), include.rownames=FALSE)
+```
+
+
+
+
+
+
+
