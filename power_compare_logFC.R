@@ -36,7 +36,7 @@ power_compare_logFC = function( sig1, sig2, N, N_other, alpha=0.05, n_tests=2000
 		# find the cutoff corresponding to the alpha value
 		cutoff = qnorm( alpha_multiple/2, 0, sd=sqrt(sigSq), lower.tail=FALSE)
 
-		# power cut one sided test, negative
+		# power for one sided test, negative
 		p1 = pnorm(-1*cutoff, d, sqrt(sigSq))
 
 		# power for second side of test, positive
