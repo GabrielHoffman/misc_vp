@@ -56,10 +56,10 @@ power_compare_logFC = function( sig1, sig2, N, N_other, alpha=0.05, n_tests=2000
 library(ggplot2)
 
 power_compare_logFC( sig1	= 0.1, 
-					sig2 	= 0.2, 
-					N 		= 3, 
+					sig2	= 0.2, 
+					N		= 3, 
 					N_other	= c(4, 8, 12, 18, 24), 
-					alpha 	= 0.05, 
+					alpha	= 0.05, 
 					n_tests	= 20000)
 
 
