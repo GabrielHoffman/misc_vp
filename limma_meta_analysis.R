@@ -1,5 +1,5 @@
 # Gabriel Hoffman
-# December 5, 2019
+# December 20, 2019
 
 library(variancePartition)
 library(metafor)
@@ -25,12 +25,12 @@ run_meta_analysis = function( fitList, coef, method="REML" ){
 	featureNames = unique(unlist(featureNames))
 
 	# check that each fit has all features
-	testIdentical = lapply(resList, function(res){
-		identical(sort(rownames(res)), sort(featureNames))
-		})
-	if(  any(!unlist(testIdentical)) ){
-		stop("each entry in fitList must have all features with the same names")
-	}
+	# testIdentical = lapply(resList, function(res){
+	# 	identical(sort(rownames(res)), sort(featureNames))
+	# 	})
+	# if(  any(!unlist(testIdentical)) ){
+	# 	stop("each entry in fitList must have all features with the same names")
+	# }
 
 	# apply meta analysis for each feature
 	resRMA = lapply(featureNames, function(feature){
@@ -39,7 +39,7 @@ run_meta_analysis = function( fitList, coef, method="REML" ){
 			res[feature,]
 			})
 		df = do.call("rbind", res)
-		rma(yi=logFC, sei=se, data = df, method=method)
+		suppressWarnings(rma(yi=logFC, sei=se, data = df, method=method))
 		})
 	names(resRMA) = featureNames
 
@@ -49,11 +49,13 @@ run_meta_analysis = function( fitList, coef, method="REML" ){
 	resTable = lapply(resRMA, function(x){
 		data.frame(	beta 	= x$beta,
 					se 		= x$se,
-					pvalue 	= x$pval)
+					pvalue 	= x$pval,
+					Q 		= x$QE,
+					N 		= x$k,
+					I2 		= x$I2)
 		})
 	do.call("rbind", resTable)
 }
-
 
 # get data from example analysis for dream
 data(varPartData)
@@ -76,7 +78,7 @@ fit2 = eBayes(fit2)
 
 
 # create a list of dream or eBayes results to meta analyze
-fitList = list(fit1, fit2)
+fitList = list(fit1[1:100,], fit2)
 
 # specifiy coefficient to test
 coef = "Batch2"
