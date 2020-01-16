@@ -109,7 +109,7 @@ res = lapply(names(n_samples)[-1], function(ID){
 })
 res = do.call("rbind", res)
 
-ggplot(res, aes(C, power, color=delta)) + geom_line(size=1.2) + theme_bw(15) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + xlab("# of cells") + ggtitle("Power to detect changes in cell composition") + ylim(0, 1) + facet_wrap(~Disease) + scale_x_log10() + geom_vline(xintercept=3300, color="black", linetype="dashed")
+ggplot(res, aes(C, power, color=delta)) + geom_line(size=1.2) + theme_bw(15) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + xlab("# of cells") + ggtitle("Power to detect changes in cell composition") + ylim(0, 1) + facet_wrap(~Disease) + scale_x_log10() + geom_vline(xintercept=3300, color="black", linetype="dashed") + geom_hline(yintercept=0.8, color="red", linetype="dashed")
 ```
 
 Power here is shown applying a Bonferroni correction for testing 100 cell types.
@@ -212,7 +212,7 @@ getPowerCurve = function(n1, n2, n_tests, rsq){
 
 # for each disease
 res = lapply(names(n_samples)[-1], function(ID){
-	res = lapply( c(.6, .7, .8, .9,1), function(rsq){
+	res = lapply( c(.5, .6, .7, .8, .9,1), function(rsq){
 		res = getPowerCurve(n_samples['CTL'], n_samples[ID], n_tests, rsq)
 		res$Disease = ID
 		res 
@@ -224,7 +224,7 @@ res = do.call("rbind", res)
 res$rsq_text = with(res, factor(rsq, rev(sort(unique(rsq)))))
 res = res[order(res$rsq, decreasing=FALSE),]
 
-ggplot(res, aes(d, power, color=rsq_text)) + geom_line(size=2) + theme_bw(30) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("Cohen's d") + facet_wrap( ~ Disease) + scale_color_discrete(bquote(R^2))
+ggplot(res, aes(d, power, color=rsq_text)) + geom_line(size=2) + theme_bw(30) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("Cohen's d") + facet_wrap( ~ Disease) + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed")
 ```
 
 Cohens $d = \frac{|\mu_1 - \mu_2|}{\sigma}$ is the effect size scaled by the within group standard deviation. Dashed line indicates 3,300 cells
@@ -257,7 +257,7 @@ getPower = function(n, rsq, f, n_tests){
 # for each f value
 res = lapply( seq(0, .06, length.out=500), function(f){
 	# for each rsq
-	res = lapply( c(.6, .7, .8, .9,1), function(rsq){
+	res = lapply( c(.5, .6, .7, .8, .9,1), function(rsq){
 		res = getPower(n, rsq, f, n_tests)
 		data.frame(n, rsq, f, power=res$power)
 	})
@@ -265,9 +265,11 @@ res = lapply( seq(0, .06, length.out=500), function(f){
 })
 res = do.call("rbind", res)
 
-ggplot(res, aes(f, power, color=as.character(rsq))) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("eQTL variance explained") + scale_color_discrete(bquote(R^2))
+ggplot(res, aes(f, power, color=as.character(rsq))) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("eQTL variance explained") + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed")
 ```
 
+
+x-axis show MAF and fixed at beta from mean from Commonmind.
 
 
 
