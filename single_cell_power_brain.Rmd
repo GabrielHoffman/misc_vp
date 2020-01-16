@@ -17,6 +17,10 @@ output:
 rmarkdown::render("/Users/gabrielhoffman/workspace/repos/misc_vp/single_cell_power_brain.Rmd", output_dir='./', intermediates_dir='./'); 
 system("cat single_cell_power.html | grep -v 'Found more than one class' | grep -v 'PythonEmbedInR' > single_cell_power_brain2.html")
 
+# minerva
+cd /sc/orga/projects/CommonMind/hoffman/misc_vp
+R
+rmarkdown::render("single_cell_power_brain.Rmd", output_dir='./', intermediates_dir='./'); 
 
 --->
 
@@ -225,7 +229,7 @@ ggplot(res, aes(d, power, color=rsq_text)) + geom_line(size=2) + theme_bw(30) + 
 
 Cohens $d = \frac{|\mu_1 - \mu_2|}{\sigma}$ is the effect size scaled by the within group standard deviation. Dashed line indicates 3,300 cells
 
-## Get sample size to get 80% power
+## Get effect size to with 80% power
 ```{r, results="asis", echo=FALSE}
 res = data.table(res)
 res$Dataset = with(res, paste(Disease, rsq))
@@ -251,7 +255,7 @@ getPower = function(n, rsq, f, n_tests){
 }
 
 # for each f value
-res = lapply( seq(0, .06, length.out=100), function(f){
+res = lapply( seq(0, .06, length.out=500), function(f){
 	# for each rsq
 	res = lapply( c(.6, .7, .8, .9,1), function(rsq){
 		res = getPower(n, rsq, f, n_tests)
@@ -265,6 +269,13 @@ ggplot(res, aes(f, power, color=as.character(rsq))) + geom_line(size=2) + theme_
 ```
 
 
+## Get fraction of variance explained to get 80% power
+```{r, results="asis", echo=FALSE}
+res = data.table(res)
+# Sample size required to get 80% power
+tab = res[,.SD[min(which(power>.80)),],by=rsq]
+print(xtable(tab[,c('rsq', 'power', 'f')], type="html"), include.rownames=FALSE)
+```
 
 
 
