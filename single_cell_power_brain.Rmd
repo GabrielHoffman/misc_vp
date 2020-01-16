@@ -241,7 +241,7 @@ print(xtable(tab[,c('Disease', 'rsq', 'power', 'd')], type="html"), include.rown
 
 # Power for eQTL
 
-Consider $n$ samples where the response is measured with error so that the squared correlation between true and observed response is $R^2$.  Let a given SNP explain $f$% of the variance in the observed response.  Also note that if a SNP has a frequency $p$ and effect size $\beta$, the fraction of expression variation explained by the SNP is $\beta^2 p(1-p)$  
+Consider $n$ samples where the response is measured with error so that the squared correlation between true and observed response is $R^2$.  Let a given SNP explain $f$% of the variance in the observed response.  Also note that if a SNP has a frequency $p$ and effect size $\beta$, the fraction of expression variation explained by the SNP is $2\beta^2 p(1-p)$  
 
 ```{r power.eQTL, echo=FALSE}
 n = 2000
@@ -269,10 +269,6 @@ res = do.call("rbind", res)
 ggplot(res, aes(f, power, color=as.character(rsq))) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("eQTL variance explained") + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed")
 ```
 
-TODO:
-x-axis show MAF and fixed at beta from mean from Commonmind.
-
-
 
 ## Get fraction of variance explained to get 80% power
 ```{r, results="asis", echo=FALSE}
@@ -284,8 +280,47 @@ print(xtable(tab[,c('rsq', 'power', 'f')], type="html"), include.rownames=FALSE)
 ```
 
 
+# Power curve versus MAF
 
+```{r eval=FALSE}
+# https://www.synapse.org/#!Synapse:syn5652278
+df = fread("CMC_MSSM-Penn-Pitt_DLPFC_Analysis_eQTL-adjustedSVA.txt.gz")
 
+# for each gene get top hit
+df2 = df[eQTL_type=='cis',.SD[which.min(FDR),], by=Gene]
+
+summary(df2[FDR < 0.05,abs(Beta)])
+```
+
+The mean absolute effect size for the top SNP (i.e. smallest p-value) keeping only SNPS with FDR < 0.05 is 0.11384 (median is 0.07786)
+
+This value is very similar to the 0.13 from [GTEx](https://www.nature.com/articles/ng.2653)
+
+```{r power.eQTL, maf}
+beta = 0.11384
+
+n = 2000
+
+n_tests = 50000 * 100
+
+# for each f value
+res = lapply( seq(0.005, .3, length.out=500), function(maf){
+
+	# need to scale by sqrt(n) because beta is already scaled
+	f = 2*beta^2 * maf * (1-maf) * sqrt(n)
+
+	# for each rsq
+	res = lapply( c(.5, .6, .7, .8, .9,1), function(rsq){
+		res = getPower(n, rsq, f, n_tests)
+		data.frame(n, rsq, f, maf, power=res$power)
+	})
+	res = do.call("rbind", res)
+})
+res = do.call("rbind", res)
+
+ggplot(res, aes(maf, power, color=as.character(rsq))) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("MAF") + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed") + scale_x_log10()
+```
+Power is shown correcting for 50K tests times 100 cell types.
 
 
 
