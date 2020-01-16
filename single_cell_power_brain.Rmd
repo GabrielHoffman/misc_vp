@@ -1,0 +1,275 @@
+---
+title: "Power for single cell brain grant"
+subtitle: 'for Panos'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+documentclass: article
+output: 
+  html_document:
+  toc: true
+  smart: false
+---
+
+
+<!---
+
+# laptop
+rmarkdown::render("/Users/gabrielhoffman/workspace/repos/misc_vp/single_cell_power_brain.Rmd", output_dir='./', intermediates_dir='./'); 
+system("cat single_cell_power.html | grep -v 'Found more than one class' | grep -v 'PythonEmbedInR' > single_cell_power_brain2.html")
+
+
+--->
+
+```{r load.packages, echo=FALSE, message=FALSE, results='hide'}
+library(ggplot2)
+library(data.table)
+library(xtable)
+
+```
+
+```{r knitr, echo=FALSE}
+suppressPackageStartupMessages(library(knitr))
+options(xtable.type="html")
+
+knitr::opts_chunk$set(
+  echo=TRUE,
+  warning=FALSE,
+  message=TRUE,
+  error = FALSE,
+  tidy = FALSE,
+  cache = TRUE,
+  cache.lazy = FALSE,
+  dev = c("png", "pdf"), 
+  fig.width=7, fig.height=7)
+
+options(markdown.HTML.stylesheet = 'css/custom.css')
+```
+
+
+# Experimental set up
+We are in the process of responding to reviewers’ comments for the PEC U01 grant we submitted in the summer. There is a chance that NIMH will fund it either as a grant or as a supplement. One of the comments was to include a power analysis based on the selected population for: differences in cell proportion, differences in gene expression and also QTL analysis. Can you help with the analysis? Not sure if you have seen this one and whether it will be helpful: https://www.ncbi.nlm.nih.gov/pubmed/29036287
+ 
+The design is the following: we will have overall 2000 individuals which includes: 900 controls, 600 SCZ, 200 BD and 300 MDD. From each individual, we will profile 3,300 nuclei to a total of 6.6M single nuclei profiles. The population structure is 80% Caucasian and the rest is mixed (mostly AA) in case you need to model this for QTL power analysis. Ideally, we would like to convince reviewers that we have good power even for populations that are rare (let’s say 1% of cells) and also for QTL effects that involve variants with MAF closer to 1%.
+ 
+# Power to identify differences in proportion
+Given $C$ cells per individual, consider a cell type $i$ with proportion $p_i$.  The estimation cell proportion, $\hat{p_i}$, is based on observing $C$ cells, and the sampling variance of this fraction is $p_i(1-p_i)/C$.  Consider two subsets of the data with sample sizes $n_1$ and $n_2$.
+
+Power is based on the size of each of the two subsets, and Cohens d:
+$d = \frac{|\mu_1 - \mu_2|}{\sigma}$
+
+where $\sigma^2$ is the pooled variance:
+
+$\sigma^2 = \frac{(n_1-1)s^2_1 + (n_2-1)s^2_2}{n_1+n_2-2}$
+
+I have confirmed these curves with simulations. This assumes no cell type misclassification error.
+
+```{r power.analysis.proportions, fig.height=4, fig.width=12}
+
+library(pwr)
+n_samples = c(CTL = 900, SCZ = 600, BD=200, MDD=300)
+n_cells_max = 10000
+prop_diff = list(c(0.001, 0.005), c(0.0001, 0.0005), c(0.00001, 0.0001), c(0.000001, 0.00001))
+n_tests = 100
+
+getPower = function(n1, n2, p1, p2, C, n_tests){
+	sSq1 = p1*(1-p1)/ C
+	sSq2 = p2*(1-p2)/ C
+
+	sigSq = ((n1-1)*sSq1 + (n2-1)*sSq2) / (n1 + n2 -2)
+	d = abs(p1 - p2)/sqrt(sigSq)
+
+	pwr.t2n.test(n1=n1, n2=n2, d=d, sig.level = 0.05/n_tests )
+}
+
+getPowerCurve = function(n1, n2){
+	# for each pair of proportions
+	res = lapply(prop_diff, function(prop){
+		p1 = prop[1]
+		p2 = prop[2]
+
+		# for each cell number
+		res = lapply( seq(10, n_cells_max, by = 3), function(C){
+			res = getPower(n1, n2, p1, p2, C, n_tests)
+			data.frame(n1, n2, p1, p2, C, d = res$d, power= res$power, delta=paste0(p1*100, '% to ', p2*100, '%'))
+			})
+		do.call("rbind", res)
+		})
+	do.call("rbind", res)
+}
+
+# for each disease
+res = lapply(names(n_samples)[-1], function(ID){
+	res = getPowerCurve(n_samples['CTL'], n_samples[ID])
+	res$Disease = ID
+	res 
+})
+res = do.call("rbind", res)
+
+ggplot(res, aes(C, power, color=delta)) + geom_line(size=1.2) + theme_bw(15) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + xlab("# of cells") + ggtitle("Power to detect changes in cell composition") + ylim(0, 1) + facet_wrap(~Disease) + scale_x_log10() + geom_vline(xintercept=3300, color="black", linetype="dashed")
+```
+
+Power here is shown applying a Bonferroni correction for testing 100 cell types.
+
+## Get number of cells to get 80% power
+```{r, results="asis", echo=FALSE}
+# Sample size required to get 80% power
+res = data.table(res)
+res$Dataset = with(res, paste(Disease, delta))
+tab = res[,.SD[min(which(power>.80)),],by=Dataset]
+tab$Cells_per_individual = as.integer(tab$C)
+print(xtable(tab[,c('Dataset', 'Cells_per_individual', 'power')], type="html"), include.rownames=FALSE)
+```
+
+
+<!---
+### Confirm the theoretical power with simulations
+```{r power.prop.simulation}
+# do simulation
+n1 = 900
+n2 = 600
+p1 = 0.0001
+p2 = 0.00001
+
+y1 = rbinom(1e6, 5000, p1) / 5000
+var(y1)
+p1*(1-p1)/5000
+
+resSim = lapply( seq(10, 2000, by = 100), function(C){
+	count = sapply( 1:1000, function(i){
+		y1 = rbinom(n1, C, p1) / C
+		y2 = rbinom(n2, C, p2) / C
+		y = c(y1,y2)
+		x = c(rep(1, n1), rep(2, n2))
+		coef(summary(lm(y ~ x)))[2,4] < 0.05 / n_tests
+	})
+	data.frame(C, power =sum(count) / length(count))
+})
+resSim = do.call("rbind", resSim)
+
+ggplot(resSim, aes(C, power)) + geom_line()
+```
+--->
+
+# Power for differential expression
+
+ Based on [Mandric et al. (2019)](http://dx.doi.org/10.1101/766972)
+
+ $B = B_m + N*L/x + 1e-6 *N*M*r*p $
+
+ where 
+
+B: total cost
+
+N: sample size
+
+x: multiplexing - number of individuals per pool
+
+M: number of cells per individual
+
+r: read coverate per cell
+
+p: cost of 1 million reads
+
+B_m: budget wasted in sequencing multiplets.
+
+As the number of reads per cell increase, the correlation with the true expression value approaches 1.  Based on subsampling from 10X data from blood (?),  Mandric et al. show that generating 75K reads per cell gives a average squared correlation ($R^2$) between the subsampled and the full dataset of $0.70$ across all genes. Of course some genes will have higher $R^2$ and some will be lower, but we consider this genome-wide average.
+
+Consider a regression test of $N$ samples.  Often the true response variable cannot be obtained directly, but a value measured with error is used instead.  If the squared correlation betwen the true and observed response variable is $R^2$, then the effective sample size is $NR^2$.  Of course power if maximized with larger $R^2$ values.
+
+Here we assume that $R^2=0.70$ for 75K reads based on  Mandric et al.  We admit that this might not transfer ideally to our dataset because the squared correlation value was determiend based a blood dataset of 8 immune cell types.  Here we ignore issues with cell type misclassification, probably lower quality from brain nuclei, batch effects, etc.  But it is a reasonable place to start.  A more indepth analysis, would require custom simulations.
+
+However, these is another level to consider with power analysis.  Because the number of case and controls are not balanced, we can consider the effective sample size as the number of samples in an equivalently power balanced study.  Given sample sizes $n_1$ and $n_2$, $n_{eff} = \frac{4}{1/n_1 + 1/n_2}$.
+
+We need to evaluate the power given 1) measurement error, and 2) case control imbalance.  Therefore, the effective sample size consider both these factors is $n_{eff,R^2} = n_{eff}R^2$
+
+
+```{r, fig.width=20}
+
+n_genes = 10000
+n_cell_types = 100
+n_tests = n_genes * n_tests
+
+getPower = function(n1, n2, d, n_tests, rsq){
+	# pwr.t2n.test(n1=n1, n2=n2, d=d, sig.level = 0.05/n_tests )
+
+	# Compute n_Eff, need to divide by 2 becaues n is the number in each set
+	N_eff = 4 / (1/n1 + 1/n2)
+	pwr.t.test(n=N_eff/2 * rsq, d=d, sig.level = 0.05/n_tests )
+}
+
+getPowerCurve = function(n1, n2, n_tests, rsq){
+	# for each cell number
+	res = lapply( seq(0, 1, length.out=1000), function(delta){
+		res = getPower(n1, n2, delta, n_tests, rsq)
+		data.frame(n1, n2, d = res$d, rsq, power= res$power)
+		})
+	do.call("rbind", res)
+}
+
+# for each disease
+res = lapply(names(n_samples)[-1], function(ID){
+	res = lapply( c(.6, .7, .8, .9,1), function(rsq){
+		res = getPowerCurve(n_samples['CTL'], n_samples[ID], n_tests, rsq)
+		res$Disease = ID
+		res 
+	})
+	do.call("rbind", res)
+})
+res = do.call("rbind", res)
+
+res$rsq_text = with(res, factor(rsq, rev(sort(unique(rsq)))))
+res = res[order(res$rsq, decreasing=FALSE),]
+
+ggplot(res, aes(d, power, color=rsq_text)) + geom_line(size=2) + theme_bw(30) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("Cohen's d") + facet_wrap( ~ Disease) + scale_color_discrete(bquote(R^2))
+```
+
+Cohens $d = \frac{|\mu_1 - \mu_2|}{\sigma}$ is the effect size scaled by the within group standard deviation. Dashed line indicates 3,300 cells
+
+## Get sample size to get 80% power
+```{r, results="asis", echo=FALSE}
+res = data.table(res)
+res$Dataset = with(res, paste(Disease, rsq))
+# Sample size required to get 80% power
+tab = res[,.SD[min(which(power>.80)),],by=Dataset]
+print(xtable(tab[,c('Disease', 'rsq', 'power', 'd')], type="html"), include.rownames=FALSE)
+```
+
+# Power for eQTL
+
+Consider $n$ samples where the response is measured with error so that the squared correlation between true and observed response is $R^2$.  Let a given SNP explain $f$% of the variance in the observed response.  
+
+```{r power.eQTL, echo=FALSE}
+n = 2000
+f = .1
+rsq = .6
+
+# get 1e-6 cutoff in each cell type
+n_tests = 50000 * 100
+
+getPower = function(n, rsq, f, n_tests){
+	pwr.r.test(n*rsq, r=sqrt(f), sig.level=0.05/n_tests)
+}
+
+# for each f value
+res = lapply( seq(0, .06, length.out=100), function(f){
+	# for each rsq
+	res = lapply( c(.6, .7, .8, .9,1), function(rsq){
+		res = getPower(n, rsq, f, n_tests)
+		data.frame(n, rsq, f, power=res$power)
+	})
+	res = do.call("rbind", res)
+})
+res = do.call("rbind", res)
+
+ggplot(res, aes(f, power, color=as.character(rsq))) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("eQTL variance explained") + scale_color_discrete(bquote(R^2))
+```
+
+
+
+
+
+
+
+
+
+
