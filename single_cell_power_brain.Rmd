@@ -296,6 +296,8 @@ The mean absolute effect size for the top SNP (i.e. smallest p-value) keeping on
 
 This value is very similar to the 0.13 from [GTEx](https://www.nature.com/articles/ng.2653)
 
+Power is shown correcting for 50K tests times 100 cell types.
+
 ```{r power.eQTL, maf}
 beta = 0.11384
 
@@ -320,7 +322,6 @@ res = do.call("rbind", res)
 
 ggplot(res, aes(maf, power, color=as.character(rsq))) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("MAF") + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed") + scale_x_log10()
 ```
-Power is shown correcting for 50K tests times 100 cell types.
 
 
 
