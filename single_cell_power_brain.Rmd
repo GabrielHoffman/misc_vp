@@ -19,6 +19,7 @@ system("cat single_cell_power.html | grep -v 'Found more than one class' | grep 
 
 # minerva
 cd /sc/orga/projects/CommonMind/hoffman/misc_vp
+ml openssl pandoc
 R
 rmarkdown::render("single_cell_power_brain.Rmd", output_dir='./', intermediates_dir='./'); 
 
@@ -268,7 +269,7 @@ res = do.call("rbind", res)
 ggplot(res, aes(f, power, color=as.character(rsq))) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("eQTL variance explained") + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed")
 ```
 
-
+TODO:
 x-axis show MAF and fixed at beta from mean from Commonmind.
 
 
