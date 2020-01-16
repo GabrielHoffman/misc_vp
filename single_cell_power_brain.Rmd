@@ -240,7 +240,7 @@ print(xtable(tab[,c('Disease', 'rsq', 'power', 'd')], type="html"), include.rown
 
 # Power for eQTL
 
-Consider $n$ samples where the response is measured with error so that the squared correlation between true and observed response is $R^2$.  Let a given SNP explain $f$% of the variance in the observed response.  
+Consider $n$ samples where the response is measured with error so that the squared correlation between true and observed response is $R^2$.  Let a given SNP explain $f$% of the variance in the observed response.  Also note that if a SNP has a frequency $p$ and effect size $\beta$, the fraction of expression variation explained by the SNP is $\beta^2 p(1-p)$  
 
 ```{r power.eQTL, echo=FALSE}
 n = 2000
@@ -267,6 +267,8 @@ res = do.call("rbind", res)
 
 ggplot(res, aes(f, power, color=as.character(rsq))) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("eQTL variance explained") + scale_color_discrete(bquote(R^2))
 ```
+
+
 
 
 ## Get fraction of variance explained to get 80% power
