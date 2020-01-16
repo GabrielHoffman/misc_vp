@@ -274,6 +274,7 @@ ggplot(res, aes(f, power, color=as.character(rsq))) + geom_line(size=2) + theme_
 res = data.table(res)
 # Sample size required to get 80% power
 tab = res[,.SD[min(which(power>.80)),],by=rsq]
+tab$f = format(tab$f, digits=2)
 print(xtable(tab[,c('rsq', 'power', 'f')], type="html"), include.rownames=FALSE)
 ```
 
