@@ -5,7 +5,7 @@
 # Motivated by Nadine's synergy analysis
 # the sample size enters only through the standard error of the logFC's
 # We use the factor that increasing the sample size by a factor of F
-#	will decrease the variance of the logFC by a factor of sqrt(F)
+#	will decrease the standard error of the logFC by a factor of sqrt(F)
 # Were we show results for testing the absolute difference in logFC values
 # We also account for multiple testing
 
