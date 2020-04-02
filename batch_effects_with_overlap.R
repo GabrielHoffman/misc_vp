@@ -7,7 +7,7 @@ library(PRROC)
 library(BiocParallel)
 # register(SnowParam(4))
 
-set.seed(1)
+# set.seed(1)
 
 n = 10
 p = 1000
@@ -88,8 +88,12 @@ batchOffsets = lapply( 1:p, function(i){
 		# individuals are present in both batches
 		isec = intersect(idx_id, c(idx_j, idx_k) )
 
-		beta = coef(lm(Y[i,isec] ~ Batch, info[isec,]))[2]
-		C[idx[1,h], idx[2,h]] = abs(beta)
+		# fit paired model of the different between samples from the
+		# same individual
+		fit_local = lm(Y[i,isec] ~ Batch + Individual, droplevels(info[isec,]))
+
+		beta = coef(fit_local)[2]
+		C[idx[1,h], idx[2,h]] = beta
 	}
 	diag(C) = 0
 	C[lower.tri(C)] = t(C)[lower.tri(C)]
@@ -103,11 +107,23 @@ batchOffsets = lapply( 1:p, function(i){
 	C_est = C
 
 	# project distances onto a line
-	batch_values = cmdscale( C_est, k=1)
-	t(batch_values - min(batch_values))
+	# there is an issue with the sign of MDS being inconsistent
+	# batch_values = cmdscale( C_est, k=1)
+	# t(batch_values - min(batch_values))
+	C[,1]
+
 	})
 batchOffsets = do.call(rbind, batchOffsets)
 colnames(batchOffsets) = levels(info$Batch)
+
+
+
+
+# coef(lm( t(Y[1,,drop=FALSE]) ~ 0 + Batch + Individual, info))[1:3]
+
+# print(batchOffsets[1,])
+
+
 
 # Apply the offsets
 ###################
@@ -136,46 +152,67 @@ lm( t(Y_corrected[1,,drop=FALSE]) ~ Batch, info)
 lm( t(Y_corrected[1,,drop=FALSE]) ~ 0+Batch, info)
 
 
-<!---
-# NOTE
-Here I used the ideal example of complete observations in all datsets.  
-In this case all distances between batches are guaranteed to sum (i.e. d(1,3) = d(1,2) + d(2,3)) and all pairs are observed.
-Also in this case the observe batch effect from the corrected values is guaranteed to be zero.
-I started with this to make sure it works in the best case scenerio.
-Your dataset corresponds to the case where some samples are dropped from Y_corrected.  In that case, the observed batch effect of the corrected data will not be exactly zero, because theere is incomplete overlap between the "training" and "testing" sets.
+# original values
+Y[1:3, info$Individual == "ID2"]
+
+# corrected values
+Y[1:3, info$Individual == "ID2"] - batchOffsets[1:3,]
+
+# Also, corrected values
+Y_corrected[1:3, info$Individual == "ID2"] 
+
+# PCA of original data
+dcmp = prcomp( t(Y))
+plot(dcmp$x[,1:2], col=info$Batch)
+
+# PCA of corrected data
+# now disease state stands out
+dcmp = prcomp( t(Y_corrected))
+plot(dcmp$x[,1:2], col=info$Batch)
 
 
 
 
-For gene i, compare batch j and batch k on the samples from paired individuals that overlap
-Create a matrix C where C[j,k] is the batch effect between j and k. Set diagonal values to zero.
 
-1) Fit a linear model on the subset of data to estimate C[j,k]
-	fit = lm(y ~ Batch)
-	Repeat for all pairs of batches
+# # NOTE
+# Here I used the ideal example of complete observations in all datsets.  
+# In this case all distances between batches are guaranteed to sum (i.e. d(1,3) = d(1,2) + d(2,3)) and all pairs are observed.
+# Also in this case the observe batch effect from the corrected values is guaranteed to be zero.
+# I started with this to make sure it works in the best case scenerio.
+# Your dataset corresponds to the case where some samples are dropped from Y_corrected.  In that case, the observed batch effect of the corrected data will not be exactly zero, because theere is incomplete overlap between the "training" and "testing" sets.
 
-2) If some entries in C are not observed (i.e. NA) because no paired samples overlap between batches j and k, use Euclidean Distance Matrix Completion (edmcr package) to fill in these values.
 
-	# matrix completion for distance matrix
-	# this assumes that batches lay on a one dimension line
-	# so that the distance from batch 1 to 3 is the sum of 1,2 + 1,3
-	# When the data is completely observed and all pairs overlap in all batches,
-	# this assumption is satisfied *exactly*.
-	# With incomplete overlap, this assumption can be used to reconstruct missing distances
-	# If all pairs are observed, then skip this
-	library(edmcr)
-	C_est = edmc(C,"dpf", d=1)$D
 
-	# Given this complete pairwise distance matrix, 
-	# create a vector batch_values where batch_values[h] 
-	# should be added to samples in batch h to remove the batch effect.
-	# As above, this assumes that the batches effects lay on a 1 dimensional line
-	# When the data is completely observed and all pairs overlap in all batches, this will give the offset terms that you expect intuitively
-	batch_values = cmdscale( C_est, k=1)
-	batch_values = batch_values - min(batch_values) # so min offset is zero
 
-3) Apply the batch effect correction by adding batch_values[h] to the expression values from batch h
---->
+# For gene i, compare batch j and batch k on the samples from paired individuals that overlap
+# Create a matrix C where C[j,k] is the batch effect between j and k. Set diagonal values to zero.
+
+# 1) Fit a linear model on the subset of data to estimate C[j,k]
+# 	fit = lm(y ~ Batch)
+# 	Repeat for all pairs of batches
+
+# 2) If some entries in C are not observed (i.e. NA) because no paired samples overlap between batches j and k, use Euclidean Distance Matrix Completion (edmcr package) to fill in these values.
+
+# 	# matrix completion for distance matrix
+# 	# this assumes that batches lay on a one dimension line
+# 	# so that the distance from batch 1 to 3 is the sum of 1,2 + 1,3
+# 	# When the data is completely observed and all pairs overlap in all batches,
+# 	# this assumption is satisfied *exactly*.
+# 	# With incomplete overlap, this assumption can be used to reconstruct missing distances
+# 	# If all pairs are observed, then skip this
+# 	library(edmcr)
+# 	C_est = edmc(C,"dpf", d=1)$D
+
+# 	# Given this complete pairwise distance matrix, 
+# 	# create a vector batch_values where batch_values[h] 
+# 	# should be added to samples in batch h to remove the batch effect.
+# 	# As above, this assumes that the batches effects lay on a 1 dimensional line
+# 	# When the data is completely observed and all pairs overlap in all batches, this will give the offset terms that you expect intuitively
+# 	batch_values = cmdscale( C_est, k=1)
+# 	batch_values = batch_values - min(batch_values) # so min offset is zero
+
+# 3) Apply the batch effect correction by adding batch_values[h] to the expression values from batch h
+
 
 
 
