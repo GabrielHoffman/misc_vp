@@ -9,10 +9,10 @@ library(BiocParallel)
 
 # set.seed(1)
 
-n = 10
-p = 1000
-n_de = 300
-n_batch = 3
+n = 30
+p = 300
+n_de = 0
+n_batch = 5
 
 # Generate study design
 info = data.frame( Individual = rep(paste0("ID", 1:n), n_batch),
@@ -25,6 +25,12 @@ for( ID in info$Individual ){
 	info$Batch[info$Individual == ID] = paste0("Batch", 1:n_batch)
 }
 info$Batch = factor(info$Batch)
+
+# randomly drop K samples 
+K = 40
+exclude = sample.int(nrow(info), K)
+info = info[-exclude,]
+
 
 # Generate gene expression
 Y = lapply( 1:p, function(i){
@@ -41,6 +47,8 @@ Y = lapply( 1:p, function(i){
 	t(y)
 	})
 Y = do.call("rbind", Y)
+
+
 
 
 # comment out for now
@@ -108,9 +116,12 @@ batchOffsets = lapply( 1:p, function(i){
 
 	# project distances onto a line
 	# there is an issue with the sign of MDS being inconsistent
-	# batch_values = cmdscale( C_est, k=1)
-	# t(batch_values - min(batch_values))
-	C[,1]
+	batch_values = t(cmdscale( C_est, k=1))
+
+	fctr = ifelse(sign(C[2,1]) == sign(batch_values[2] - batch_values[1]),
+				1, -1 )
+
+	batch_values * fctr
 
 	})
 batchOffsets = do.call(rbind, batchOffsets)
@@ -153,26 +164,29 @@ lm( t(Y_corrected[1,,drop=FALSE]) ~ 0+Batch, info)
 
 
 # original values
-Y[1:3, info$Individual == "ID2"]
+# Y[1:3, info$Individual == "ID2"]
 
-# corrected values
-Y[1:3, info$Individual == "ID2"] - batchOffsets[1:3,]
+# # corrected values
+# Y[1:3, info$Individual == "ID2"] - batchOffsets[1:3,]
 
-# Also, corrected values
-# But notice that the values are not exactly the same
-# The method does not set the values from the pair of samples to be equal
-# For a given gene, it computes the deviation between all pairs of individuals, 
-# then creates an offset so that the mean deviation between the samples from the same individuals is zero
-Y_corrected[1:3, info$Individual == "ID2"] 
+# # Also, corrected values
+# # But notice that the values are not exactly the same
+# # The method does not set the values from the pair of samples to be equal
+# # For a given gene, it computes the deviation between all pairs of individuals, 
+# # then creates an offset so that the mean deviation between the samples from the same individuals is zero
+# Y_corrected[1:3, info$Individual == "ID2"] 
 
+par(mfrow=c(1,2))
 # PCA of original data
 dcmp = prcomp( t(Y))
-plot(dcmp$x[,1:2], col=info$Batch)
+(dcmp$sdev^2 / sum(dcmp$sdev^2))[1:2]
+plot(dcmp$x[,1:2], col=info$Batch, main="Original data")
 
 # PCA of corrected data
 # now disease state stands out
 dcmp = prcomp( t(Y_corrected))
-plot(dcmp$x[,1:2], col=info$Batch)
+(dcmp$sdev^2 / sum(dcmp$sdev^2))[1:2]
+plot(dcmp$x[,1:2], col=info$Batch, main="Corrected data")
 
 
 
