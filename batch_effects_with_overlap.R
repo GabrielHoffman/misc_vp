@@ -159,6 +159,10 @@ Y[1:3, info$Individual == "ID2"]
 Y[1:3, info$Individual == "ID2"] - batchOffsets[1:3,]
 
 # Also, corrected values
+# But notice that the values are not exactly the same
+# The method does not set the values from the pair of samples to be equal
+# For a given gene, it computes the deviation between all pairs of individuals, 
+# then creates an offset so that the mean deviation between the samples from the same individuals is zero
 Y_corrected[1:3, info$Individual == "ID2"] 
 
 # PCA of original data
