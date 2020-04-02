@@ -62,6 +62,7 @@ library(edmcr)
 
 # Estimate batch effect directly
 ################################
+
 batchOffsets = lapply( 1:p, function(i){
 
 	idx = combn(n_batch, 2)
@@ -70,13 +71,24 @@ batchOffsets = lapply( 1:p, function(i){
 	for(h in 1:ncol(idx) ){
 		j = paste0("Batch", idx[1,h])
 		k = paste0("Batch", idx[2,h])
-		l = info$Batch %in% c(j,k)		
-		beta = coef(lm(Y[i,l] ~ Batch, info[l,]))[2]
+		
+		# get samples in batches j and k
+		idx_j = which(info$Batch %in% j)
+		idx_k = which(info$Batch %in% k)
+
+		# only keep individuals present in both batches
+		keepID = intersect(info$Individual[idx_j], info$Individual[idx_k])
+		idx_id = which(info$Individual %in% keepID)
+
+		# only keep samples in batch j and k where the 
+		# individuals are present in both batches
+		isec = intersect(idx_id, c(idx_j, idx_k) )
+
+		beta = coef(lm(Y[i,isec] ~ Batch, info[isec,]))[2]
 		C[idx[1,h], idx[2,h]] = abs(beta)
 	}
 	diag(C) = 0
 	C[lower.tri(C)] = t(C)[lower.tri(C)]
-
 
 	# pretend one pair wasn't observed by setting to NA
 	# C[1,2] = C[2,1]= NA
@@ -109,11 +121,15 @@ for( batch in levels(info$Batch) ){
 
 
 # estimate batch offset from original data
-lm( t(Y[1,,drop=FALSE]) ~ Batch , info)
+lm( t(Y[1,,drop=FALSE]) ~ Batch, info)
 
 # estimate batch offset from corrected data
 # Observe *no* batch effect
-lm( t(Y_corrected[1,,drop=FALSE]) ~ Batch , info)
+lm( t(Y_corrected[1,,drop=FALSE]) ~ Batch, info)
+
+
+
+
 
 # NOTE
 Here I used the ideal example of complete observations in all datsets.  
