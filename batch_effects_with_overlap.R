@@ -9,10 +9,10 @@ library(BiocParallel)
 
 # set.seed(1)
 
-n = 30
-p = 300
+n = 100
+p = 1000
 n_de = 0
-n_batch = 6
+n_batch = 8
 
 # Generate study design
 info = data.frame( Individual = rep(paste0("ID", 1:n), n_batch),
@@ -27,7 +27,7 @@ for( ID in info$Individual ){
 info$Batch = factor(info$Batch)
 
 # randomly drop K samples 
-K = 50
+K = n*n_batch*.8
 exclude = sample.int(nrow(info), K)
 info = info[-exclude,]
 
@@ -42,7 +42,7 @@ Y = lapply( 1:p, function(i){
 	eta_disease = model.matrix( ~ Disease, info) %*% c(0, beta)
 	eta_batch = model.matrix( ~ 0+Batch, info) %*% rnorm(n_batch, 0, 3)
 	eta_ID = model.matrix( ~ 0+Individual, info) %*% rnorm(n)
-	y = eta_disease + eta_batch + eta_ID + rnorm(nrow(info), 0, 3)
+	y = eta_disease + eta_batch + eta_ID + rnorm(nrow(info), 0, .03)
 
 	t(y)
 	})
@@ -70,98 +70,138 @@ Y = do.call("rbind", Y)
 
 
 
-library(edmcr)
 
-# Estimate batch effect directly
-################################
+# library(edmcr)
 
-batchOffsets = lapply( 1:p, function(i){
+# # Estimate batch effect directly
+# ################################
 
-	idx = combn(n_batch, 2)
-	C = matrix(NA,n_batch,n_batch)
+# batchOffsets = lapply( 1:p, function(i){
 
-	for(h in 1:ncol(idx) ){
-		j = paste0("Batch", idx[1,h])
-		k = paste0("Batch", idx[2,h])
+# 	idx = combn(n_batch, 2)
+# 	C = matrix(NA,n_batch,n_batch)
+# 	C_weight = C
+
+# 	for(h in 1:ncol(idx) ){
+# 		j = paste0("Batch", idx[1,h])
+# 		k = paste0("Batch", idx[2,h])
 		
-		# get samples in batches j and k
-		idx_j = which(info$Batch %in% j)
-		idx_k = which(info$Batch %in% k)
+# 		# get samples in batches j and k
+# 		idx_j = which(info$Batch %in% j)
+# 		idx_k = which(info$Batch %in% k)
 
-		# only keep individuals present in both batches
-		keepID = intersect(info$Individual[idx_j], info$Individual[idx_k])
-		idx_id = which(info$Individual %in% keepID)
+# 		# only keep individuals present in both batches
+# 		keepID = intersect(info$Individual[idx_j], info$Individual[idx_k])
+# 		idx_id = which(info$Individual %in% keepID)
 
-		# only keep samples in batch j and k where the 
-		# individuals are present in both batches
-		isec = intersect(idx_id, c(idx_j, idx_k) )
+# 		# only keep samples in batch j and k where the 
+# 		# individuals are present in both batches
+# 		isec = intersect(idx_id, c(idx_j, idx_k) )
 
-		# fit paired model of the different between samples from the
-		# same individual
-		fit_local = lm(Y[i,isec] ~ Batch + Individual, droplevels(info[isec,]))
+# 		if( i == 1){
+# 			cat(k, j, length(isec), "\n")
+# 		}
+# 		# if there is overlap
+# 		if( length(isec) > 2){
+# 			# fit paired model of the different between samples from the
+# 			# same individual
+# 			fit_local = lm(Y[i,isec] ~ Batch + Individual, droplevels(info[isec,]))
+# 			beta = coef(fit_local)[2]
+# 			weight = 1/coef(summary(fit_local))[2,2]
+# 		}else{
+# 			beta = NA
+# 			weight = 0
+# 		}
 
-		beta = coef(fit_local)[2]
-		C[idx[1,h], idx[2,h]] = beta
-	}
-	diag(C) = 0
-	C[lower.tri(C)] = t(C)[lower.tri(C)]
+# 		C[idx[1,h], idx[2,h]] = beta
+# 		C_weight[idx[1,h], idx[2,h]] = weight
+# 	}
+# 	diag(C) = 0
+# 	diag(C_se) = 0
+# 	C[lower.tri(C)] = t(C)[lower.tri(C)]
+# 	C_weight[lower.tri(C_weight)] = t(C_weight)[lower.tri(C_weight)]
 
-	# pretend one pair wasn't observed by setting to NA
-	# C[1,2] = C[2,1]= NA
+# 	# C[1,2] = C[2,1] = NA
+# 	# # matrix completion for distance matrix
+# 	# # estimate missing values 
+# 	if( any(is.na(C)) ){
+# 		# C_est = edmc(C,"dpf", d=1)$D
 
-	# # matrix completion for distance matrix
-	# # estimate missing values 
-	# C_est = edmc(C,"dpf", d=1)$D
-	# C_est = C
+# 		dc = npf(C, A = C_weight, d=1 )
+# 		C_est = dc$D
+# 		bv = dc[3][[1]][,1]
 
-	# # project distances onto a line
-	# # there is an issue with the sign of MDS being inconsistent
-	# batch_values = t(cmdscale( C_est, k=1))
+# 	}else{
+# 		C_est = C
+# 	}
+# 	# C_est = C
 
-	# fctr = ifelse(sign(C[2,1]) == sign(batch_values[2] - batch_values[1]),
-	# 			1, -1 )
+# 	# # project distances onto a line
+# 	# # there is an issue with the sign of MDS being inconsistent
+# 	batch_values = t(cmdscale( C_est, k=1))
+# 	# batch_values = eigen(C_est)$vectors[,1]
 
-	# batch_values * fctr
-	C[,1]
+# 	fctr = ifelse(sign(C_est[2,1]) == sign(batch_values[2] - batch_values[1]),
+# 				1, -1 )
 
-	})
-batchOffsets = do.call(rbind, batchOffsets)
-colnames(batchOffsets) = levels(info$Batch)
+# 	batch_values * fctr
+# 	# b = C_est[,1]
+
+# 	# if( cor(a,b) < 0){
+# 	# 	stop(i)
+# 	# }
+
+# 	})
+# batchOffsets = do.call(rbind, batchOffsets)
+# colnames(batchOffsets) = levels(info$Batch)
 
 
 
 
-# coef(lm( t(Y[1,,drop=FALSE]) ~ 0 + Batch + Individual, info))[1:3]
+# # Apply the offsets
+# ###################
 
-# print(batchOffsets[1,])
+# Y_corrected = matrix(NA, nrow(Y), ncol(Y))
+
+# for( batch in levels(info$Batch) ){
+
+# 	idx = (info$Batch == batch)
+
+# 	# add offset to each sample in each batch
+# 	# use different offset (i.e. row) for each gene
+# 	Y_corrected[,idx] = Y[,idx] - batchOffsets[,batch]
+# }
+
+
+# Use linear mixed model to analyze the repeated measures
+# If we measure an individual mutliple times, compress
+# that into a single value per individual
+library(lme4)
+
+Y_corrected = lapply( 1:p, function(i){
+
+	# Get value for each individual
+	fit = lmer(Y[i,] ~ Batch + (1|Individual), info)
+ 	t(ranef(fit)$Individual)
+})
+Y_corrected = do.call("rbind", Y_corrected)
 
 
 
-# Apply the offsets
-###################
 
-Y_corrected = matrix(NA, nrow(Y), ncol(Y))
 
-for( batch in levels(info$Batch) ){
-
-	idx = (info$Batch == batch)
-
-	# add offset to each sample in each batch
-	# use different offset (i.e. row) for each gene
-	Y_corrected[,idx] = Y[,idx] - batchOffsets[,batch]
-}
 
 
 # estimate batch offset from original data
-lm( t(Y[1,,drop=FALSE]) ~ Batch, info)
+# lm( t(Y[1,,drop=FALSE]) ~ Batch, info)
 
-# estimate batch offset from corrected data
-# Observe *no* batch effect
-# here, with an intercept term
-lm( t(Y_corrected[1,,drop=FALSE]) ~ Batch, info)
+# # estimate batch offset from corrected data
+# # Observe *no* batch effect
+# # here, with an intercept term
+# lm( t(Y_corrected[1,,drop=FALSE]) ~ Batch, info)
 
-# here no intercept terms so values are equal
-lm( t(Y_corrected[1,,drop=FALSE]) ~ 0+Batch, info)
+# # here no intercept terms so values are equal
+# lm( t(Y_corrected[1,,drop=FALSE]) ~ 0+Batch, info)
 
 
 # original values
@@ -177,18 +217,25 @@ lm( t(Y_corrected[1,,drop=FALSE]) ~ 0+Batch, info)
 # # then creates an offset so that the mean deviation between the samples from the same individuals is zero
 # Y_corrected[1:3, info$Individual == "ID2"] 
 
+# Plot coloring by individual
 par(mfrow=c(1,2))
 # PCA of original data
 dcmp = prcomp( t(Y))
 (dcmp$sdev^2 / sum(dcmp$sdev^2))[1:2]
-plot(dcmp$x[,1:2], col=info$Batch, main="Original data")
+plot(dcmp$x[,1:2], col=info$Individual, main="Original data")
 
 # PCA of corrected data
 # now disease state stands out
 dcmp = prcomp( t(Y_corrected))
 (dcmp$sdev^2 / sum(dcmp$sdev^2))[1:2]
-plot(dcmp$x[,1:2], col=info$Batch, main="Corrected data")
+plot(dcmp$x[,1:2], col=info$Individual, main="Corrected data")
 
+
+# vp_orig = fitExtractVarPartModel( Y, ~ (1|Disease) + (1|Batch) + (1|Individual), info)
+# vp_corrected = fitExtractVarPartModel( Y_corrected, ~ (1|Disease) + (1|Batch) + (1|Individual), info)
+
+# plot(vp_orig$Batch, vp_corrected$Batch)
+# abline(0,1, col="red")
 
 
 
@@ -231,10 +278,6 @@ plot(dcmp$x[,1:2], col=info$Batch, main="Corrected data")
 # 	batch_values = batch_values - min(batch_values) # so min offset is zero
 
 # 3) Apply the batch effect correction by adding batch_values[h] to the expression values from batch h
-
-
-
-
 
 
 
