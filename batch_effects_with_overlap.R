@@ -12,7 +12,7 @@ library(BiocParallel)
 n = 100
 p = 1000
 n_de = 0
-n_batch = 8
+n_batch =12
 
 # Generate study design
 info = data.frame( Individual = rep(paste0("ID", 1:n), n_batch),
@@ -176,17 +176,22 @@ Y = do.call("rbind", Y)
 # Use linear mixed model to analyze the repeated measures
 # If we measure an individual mutliple times, compress
 # that into a single value per individual
-library(lme4)
+# library(lme4)
 
-Y_corrected = lapply( 1:p, function(i){
+# R code to extrat estimate at Individual level
+# Y_corrected = lapply( 1:p, function(i){
 
-	# Get value for each individual
-	fit = lmer(Y[i,] ~ Batch + (1|Individual), info)
- 	t(ranef(fit)$Individual)
-})
-Y_corrected = do.call("rbind", Y_corrected)
+# 	# Get value for each individual
+# 	fit = lmer(Y[i,] ~ Batch + (1|Individual), info)
+#  	t(ranef(fit)$Individual)
+# })
+# Y_corrected = do.call("rbind", Y_corrected)
 
 
+# Simpler variancePartition call
+fitList = fitVarPartModel( Y, ~ Batch + (1|Individual), info, fxn = function(fit){ t(ranef(fit)$Individual) }, showWarnings=FALSE)
+
+Y_corrected = do.call(rbind, fitList)
 
 
 
