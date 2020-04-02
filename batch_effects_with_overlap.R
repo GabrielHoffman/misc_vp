@@ -5,7 +5,9 @@
 library(variancePartition)
 library(PRROC)
 library(BiocParallel)
-register(SnowParam(4))
+# register(SnowParam(4))
+
+set.seed(1)
 
 n = 10
 p = 1000
@@ -40,20 +42,22 @@ Y = lapply( 1:p, function(i){
 	})
 Y = do.call("rbind", Y)
 
-# fit variancePartition model
-vp = fitExtractVarPartModel( Y, ~ (1|Disease) + (1|Batch) + (1|Individual), info)
 
-plotVarPart( vp )
+# comment out for now
+# # fit variancePartition model
+# vp = fitExtractVarPartModel( Y, ~ (1|Disease) + (1|Batch) + (1|Individual), info)
 
-# fit model
-fit = dream( Y, ~Disease + Batch + (1|Individual), info)
-res = topTable(fit, coef="Diseasecontrol", number=Inf, sort.by="none")
+# plotVarPart( vp )
 
-# show performance
-# This is a step toward validating the model, but here just on fully data
-pr <- pr.curve( -log10(res$P.Value[1:n_de]), -log10(res$P.Value[-c(1:n_de)]), curve=TRUE, rand.compute=TRUE )
+# # fit model
+# fit = dream( Y, ~Disease + Batch + (1|Individual), info)
+# res = topTable(fit, coef="Diseasecontrol", number=Inf, sort.by="none")
 
-plot(pr, rand.plot=TRUE)
+# # show performance
+# # This is a step toward validating the model, but here just on fully data
+# pr <- pr.curve( -log10(res$P.Value[1:n_de]), -log10(res$P.Value[-c(1:n_de)]), curve=TRUE, rand.compute=TRUE )
+
+# plot(pr, rand.plot=TRUE)
 
 
 
@@ -112,11 +116,11 @@ Y_corrected = matrix(NA, nrow(Y), ncol(Y))
 
 for( batch in levels(info$Batch) ){
 
-	idx = info$Batch == batch
+	idx = (info$Batch == batch)
 
 	# add offset to each sample in each batch
 	# use different offset (i.e. row) for each gene
-	Y_corrected[,idx] = Y[,idx] + batchOffsets[,batch]
+	Y_corrected[,idx] = Y[,idx] - batchOffsets[,batch]
 }
 
 
@@ -125,12 +129,14 @@ lm( t(Y[1,,drop=FALSE]) ~ Batch, info)
 
 # estimate batch offset from corrected data
 # Observe *no* batch effect
+# here, with an intercept term
 lm( t(Y_corrected[1,,drop=FALSE]) ~ Batch, info)
 
+# here no intercept terms so values are equal
+lm( t(Y_corrected[1,,drop=FALSE]) ~ 0+Batch, info)
 
 
-
-
+<!---
 # NOTE
 Here I used the ideal example of complete observations in all datsets.  
 In this case all distances between batches are guaranteed to sum (i.e. d(1,3) = d(1,2) + d(2,3)) and all pairs are observed.
@@ -169,7 +175,7 @@ Create a matrix C where C[j,k] is the batch effect between j and k. Set diagonal
 	batch_values = batch_values - min(batch_values) # so min offset is zero
 
 3) Apply the batch effect correction by adding batch_values[h] to the expression values from batch h
-
+--->
 
 
 
