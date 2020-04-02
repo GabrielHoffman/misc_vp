@@ -12,7 +12,7 @@ library(BiocParallel)
 n = 30
 p = 300
 n_de = 0
-n_batch = 5
+n_batch = 6
 
 # Generate study design
 info = data.frame( Individual = rep(paste0("ID", 1:n), n_batch),
@@ -27,7 +27,7 @@ for( ID in info$Individual ){
 info$Batch = factor(info$Batch)
 
 # randomly drop K samples 
-K = 40
+K = 50
 exclude = sample.int(nrow(info), K)
 info = info[-exclude,]
 
@@ -112,16 +112,17 @@ batchOffsets = lapply( 1:p, function(i){
 	# # matrix completion for distance matrix
 	# # estimate missing values 
 	# C_est = edmc(C,"dpf", d=1)$D
-	C_est = C
+	# C_est = C
 
-	# project distances onto a line
-	# there is an issue with the sign of MDS being inconsistent
-	batch_values = t(cmdscale( C_est, k=1))
+	# # project distances onto a line
+	# # there is an issue with the sign of MDS being inconsistent
+	# batch_values = t(cmdscale( C_est, k=1))
 
-	fctr = ifelse(sign(C[2,1]) == sign(batch_values[2] - batch_values[1]),
-				1, -1 )
+	# fctr = ifelse(sign(C[2,1]) == sign(batch_values[2] - batch_values[1]),
+	# 			1, -1 )
 
-	batch_values * fctr
+	# batch_values * fctr
+	C[,1]
 
 	})
 batchOffsets = do.call(rbind, batchOffsets)
