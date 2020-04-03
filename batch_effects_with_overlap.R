@@ -5,8 +5,8 @@
 library(variancePartition)
 library(PRROC)
 library(BiocParallel)
-# register(SnowParam(4))
-
+register(SerialParam())
+library(lme4)
 # set.seed(1)
 
 n = 100
@@ -189,7 +189,7 @@ Y = do.call("rbind", Y)
 
 
 # Simpler variancePartition call
-fitList = fitVarPartModel( Y, ~ Batch + (1|Individual), info, fxn = function(fit){ t(ranef(fit)$Individual) }, showWarnings=FALSE)
+fitList = fitVarPartModel( Y, ~ Batch + (1|Individual), info, fxn = function(fit){ t(lme4::ranef(fit)$Individual) }, showWarnings=FALSE)
 
 Y_corrected = do.call(rbind, fitList)
 
