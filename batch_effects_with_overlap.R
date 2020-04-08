@@ -7,12 +7,15 @@ library(PRROC)
 library(BiocParallel)
 register(SerialParam())
 library(lme4)
-# set.seed(1)
+set.seed(1)
 
-n = 100
+library(BiocParallel)
+register(SnowParam(4))
+
+n = 20
 p = 1000
 n_de = 0
-n_batch =12
+n_batch = 4
 
 # Generate study design
 info = data.frame( Individual = rep(paste0("ID", 1:n), n_batch),
@@ -31,31 +34,68 @@ K = n*n_batch*.8
 exclude = sample.int(nrow(info), K)
 info = info[-exclude,]
 
+ndividual = factor(info$Individual)
+info$Disease = factor(info$Disease)
+info$Batch = factor(info$Batch)
 
-# Generate gene expression
-Y = lapply( 1:p, function(i){
-	if( i < n_de ){
-		beta = rnorm(1, 0, 5)
-	}else{
-		beta = 0
+design_ID = model.matrix( ~ 0+Individual,info)
+design_Disease = model.matrix( ~ 0+Disease,info)
+design_Batch = model.matrix( ~ 0+Batch,info)
+
+nDE = 500
+
+Y = lapply( 1:p, function(j){
+
+	# Individual
+	eta_ID = design_ID %*% rnorm(nlevels(info$Individual))
+
+	# Batch
+	eta_batch = design_Batch %*% rnorm(nlevels(info$Batch))
+
+	# draw variance fractions
+	sigSq_ID = rbeta(1, 10, 20)
+	sigSq_Batch = rbeta(1, 10,50)
+
+	# of each sample is observed once, no donor component
+	if(  max(table(info$Individual)) == 1){
+		sigSq_ID = 1e-4
 	}
-	eta_disease = model.matrix( ~ Disease, info) %*% c(0, beta)
-	eta_batch = model.matrix( ~ 0+Batch, info) %*% rnorm(n_batch, 0, 3)
-	eta_ID = model.matrix( ~ 0+Individual, info) %*% rnorm(n)
-	y = eta_disease + eta_batch + eta_ID + rnorm(nrow(info), 0, .03)
 
+	# each individual has its own error variance
+	v_var = rbeta( nlevels(info$Individual), 1, 1) + 0.5
+	resid_var = model.matrix( ~ 0+Individual, info) %*% v_var
+
+	if( j < nDE){
+		# Disease
+		eta_Disease = design_Disease %*% rnorm(nlevels(info$Disease))
+
+		sigSq_Disease = rbeta(1, 1, 5)
+		sigSq_Resid = max(1 - sigSq_ID - sigSq_Disease - sigSq_Batch, .05)
+
+		# combine
+		y = scale(eta_ID) * (sigSq_ID-sigSq_Disease) + 
+			scale(eta_batch) * sigSq_Batch + 
+			scale(eta_Disease) * sigSq_Disease +			 
+			rnorm(nrow(info), 0, sd=sqrt(resid_var)) * sigSq_Resid
+	}else{
+		sigSq_Resid = max(1 - sigSq_ID - sigSq_Batch, .05)
+
+		# combine
+		y = scale(eta_ID) * sigSq_ID + 
+			scale(eta_batch) * sigSq_Batch + 		 
+			rnorm(nrow(info), sd=sqrt(resid_var)) * sigSq_Resid
+	}
 	t(y)
-	})
-Y = do.call("rbind", Y)
+})
+Y = do.call(rbind, Y)
+
+# fit variancePartition model
+vp = fitExtractVarPartModel( Y, ~ (1|Disease) + (1|Batch) + (1|Individual), info)
+
+plotVarPart( vp )
 
 
 
-
-# comment out for now
-# # fit variancePartition model
-# vp = fitExtractVarPartModel( Y, ~ (1|Disease) + (1|Batch) + (1|Individual), info)
-
-# plotVarPart( vp )
 
 # # fit model
 # fit = dream( Y, ~Disease + Batch + (1|Individual), info)
