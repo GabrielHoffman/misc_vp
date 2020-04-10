@@ -152,10 +152,18 @@ info = data.frame(	Individual = rep(paste0("ID", 1:n_cases), n_time_points),
 # }
 
 # For a given probability of being in each batch
-# prob = rbind(	c(.5, .2, .2, .1, .3),
-				# c(.2, .5, .2, .1, .3))
-prob = rbind(	rep(1/n_batches, n_batches),
-				rep(1/n_batches, n_batches))
+# all equal
+# prob = rbind(	rep(1/n_batches, n_batches),
+# 				rep(1/n_batches, n_batches))
+
+shifter <- function(x, n = 1) {
+  if (n == 0) x else c(tail(x, -n), head(x, n))
+}
+x = sort((1:n_batches)^2, decreasing=TRUE)
+
+prob = rbind(x, rev(x))
+
+
 prob = prob / rowSums(prob)
 rownames(prob) = paste0("time", 1:nrow(prob))
 colnames(prob) = paste0("batch", 1:ncol(prob))
