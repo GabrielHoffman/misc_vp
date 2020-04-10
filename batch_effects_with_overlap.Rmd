@@ -123,7 +123,7 @@ n_time_points = 2
 # total number of experiments: N*n_time_points
 p = 500
 n_de = 200 # genes different between case and control
-n_tp = 250 # genes different between time points
+n_tp = 400 # genes different between time points
 n_samples_per_batch = 20
 n_batches = n_cases*n_time_points / n_samples_per_batch
 n_batches
