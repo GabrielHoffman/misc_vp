@@ -132,10 +132,10 @@ n_batches
 
 
 opt = list()
-opt$distr_ID = estimate_beta_parameters( .02, .05)
+opt$distr_ID = estimate_beta_parameters( .1, .05)
 opt$distr_Disease = estimate_beta_parameters( .2, .05)
 opt$distr_Timepoint = estimate_beta_parameters( .3, .1)
-opt$distr_Batch = estimate_beta_parameters( .3, .05)
+opt$distr_Batch = estimate_beta_parameters( .6, .05)
 
 # Generate study design
 info = data.frame(	Individual = rep(paste0("ID", 1:n_cases), n_time_points),
