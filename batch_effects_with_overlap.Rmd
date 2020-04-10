@@ -18,8 +18,13 @@ vignette: >
 
 <!---
 
+cd /hpc/users/hoffmg01/work/misc_vp
+ml git pandoc
+git pull
+R
 
- rmarkdown::render("batch_effects_with_overlap.Rmd", output_dir='./', intermediates_dir='./')
+
+rmarkdown::render("batch_effects_with_overlap.Rmd", output_dir='./', intermediates_dir='./')
 
 
 # ```{r}
@@ -306,7 +311,7 @@ Y_list[["BLUP"]] = Y_corrected
 
 # get residuals from modeling Batch as fixed effect
 fit = dream(Y, ~ Batch, info, computeResiduals=TRUE)
-Y_list[["fixed"]] = mean_per_sampleID(residuals(fit), info)
+Y_list[["fixed"]] = mean_per_sampleID(residuals(fit, Y), info)
 
 # get residuals from modeling Batch as random effect
 fit = dream(Y, ~ (1|Batch), info, computeResiduals=TRUE)
