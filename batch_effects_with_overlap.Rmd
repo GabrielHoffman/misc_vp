@@ -41,6 +41,7 @@ rmarkdown::render("batch_effects_with_overlap.Rmd", output_dir='./', intermediat
 - sim fewer reads for shared controls
 - what happens if shared is only controls and they are very different
 - disease effect is time point dependent
+- number of shared controls
 
 
 Combine study design with statistical modelling to account for batch effects
@@ -143,14 +144,6 @@ info = data.frame(	Individual = rep(paste0("ID", 1:n_cases), n_time_points),
 					Disease = "Case", 
 				stringsAsFactors=FALSE)
 
-# since samples from the sample time point are all in the same batch, 
-# include the timepoint name in the batch name
-# info$Batch = NA
-# for( tp in unique(info$TimePoint) ){
-# 	i = which(info$TimePoint == tp)
-# 	info$Batch[i] = paste0(tp, "_Batch", sample.int(n_batches_per_timePoint, length(i), replace=TRUE))
-# }
-
 # For a given probability of being in each batch
 # all equal
 # prob = rbind(	rep(1/n_batches, n_batches),
@@ -200,7 +193,7 @@ info$Disease = factor(info$Disease)
 info$Batch = factor(info$Batch, colnames(prob))
 info$TimePoint = factor(info$TimePoint, unique(info$TimePoint))
 
-
+# plot study design
 ratio = with(info, length(unique(Batch))/ length(unique(Individual)) )
 ggplot(info, aes(Individual, fill=TimePoint, y=Batch)) + geom_tile() + theme_bw() + theme(aspect.ratio=ratio, legend.position="bottom", plot.title = element_text(hjust = 0.5), axis.text.x=element_blank()) + ggtitle("Sample batching")
 
@@ -362,13 +355,13 @@ plot(dcmp$x[,1:2], col=metadata$Individual[idx], pch=as.integer(metadata$Disease
 ```
 
 
-
+Oracle DE should only observe each control once, does that matter?
 
 ```{r differential.expression}
 
 fitList = list()
 idx = match(info$SampleID, rownames(metadata))
-fitList[['Oracle']] = dream(Y_clean, ~ (1|Disease) + TimePoint + (1|Individual), metadata[idx,])
+fitList[['Oracle']] = dream(Y_clean, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), metadata[idx,])
 
 fitList[['Replicates: shrink batch mean towards equal']] = dream(Y, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), info)
 # fitList[['Replicates: set batch mean equal']] = dream(Y, ~ Disease + (1|Batch) + TimePoint + (1|Individual), info)
@@ -376,15 +369,15 @@ fitList[['Replicates: shrink batch mean towards equal']] = dream(Y, ~ (1|Disease
 
 idx = match(colnames(Y_corrected), rownames(metadata))
 rs = apply(Y_corrected, 1, sd)
-fitList[['Replicates: Two step']] = dream(Y_corrected[rs > 0,], ~ (1|Disease) + TimePoint, metadata[idx,])
+fitList[['Replicates: Two step']] = dream(Y_corrected[rs > 0,], ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), metadata[idx,])
 # fitList[['Replicates: Two step']] = eBayes(fitList[['Replicates: Two step']])
 
 idx = ! duplicated(info$SampleID)
-fitList[['Naive']] = dream(Y[,idx], ~ TimePoint, info[idx,])
+fitList[['Naive']] = dream(Y[,idx], ~ TimePoint + (1|Individual), info[idx,])
 fitList[['Naive']] = eBayes(fitList[['Naive']])
 
 
-fitList[['Simple']] = dream(Y[,unique_ID_idx], ~ (1|Batch) + TimePoint + (1|Disease), info[unique_ID_idx,])
+fitList[['Simple']] = dream(Y[,unique_ID_idx], ~ (1|Batch) + TimePoint + (1|Disease)+ (1|Individual), info[unique_ID_idx,])
 # fitList[['Simple']] = eBayes(fitList[['Simple']])
 
 res = lapply(names(fitList), function(method){
