@@ -361,16 +361,14 @@ Oracle DE should only observe each control once, does that matter?
 
 fitList = list()
 idx = match(info$SampleID, rownames(metadata))
-fitList[['Oracle']] = dream(Y_clean, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), metadata[idx,])
+fitList[['Oracle']] = dream(Y_clean, ~ (1|Disease) + TimePoint + (1|Individual), metadata[idx,])
 
 fitList[['Replicates: shrink batch mean towards equal']] = dream(Y, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), info)
-# fitList[['Replicates: set batch mean equal']] = dream(Y, ~ Disease + (1|Batch) + TimePoint + (1|Individual), info)
 
 
 idx = match(colnames(Y_corrected), rownames(metadata))
 rs = apply(Y_corrected, 1, sd)
-fitList[['Replicates: Two step']] = dream(Y_corrected[rs > 0,], ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), metadata[idx,])
-# fitList[['Replicates: Two step']] = eBayes(fitList[['Replicates: Two step']])
+fitList[['Replicates: Two step']] = dream(Y_corrected[rs > 0,], ~ (1|Disease) + TimePoint + (1|Individual), metadata[idx,])
 
 idx = ! duplicated(info$SampleID)
 fitList[['Naive']] = dream(Y[,idx], ~ TimePoint + (1|Individual), info[idx,])
