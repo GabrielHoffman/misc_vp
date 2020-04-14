@@ -116,31 +116,132 @@ mean_per_sampleID = function(Y1, info){
 }
 ```
 
+
+```{r define.simulation.function}
+
+generateSimulations = function( opt, info ){
+
+	attach(opt)
+
+	# create design matrix for each variable
+	design_ID = model.matrix( ~ 0+Individual,info)
+	design_Disease = model.matrix( ~ 0+Disease,info)
+	design_TimePoint = model.matrix( ~ 0+TimePoint,info)[,-3] # don't simulate additional difference between controls (tp0) and cases
+	design_Batch = model.matrix( ~ 0+Batch,info)
+
+	# get names of differentially expressed genes
+	deGenes = paste0("gene_", 1:n_de)
+	tpGenes = paste0("gene_", sample.int( p, n_tp))
+
+	# Simulate expression data
+	simResults = lapply( 1:p, function(j){
+
+		# Individual
+		eta_ID = design_ID %*% rnorm(nlevels(info$Individual))
+
+		# Batch
+		eta_batch = design_Batch %*% rnorm(nlevels(info$Batch))
+
+		# TimePoint
+		eta_TimePoint = design_TimePoint %*% rnorm(nlevels(info$TimePoint)-1)
+
+		# draw variance fractions
+		sigSq_ID = rbeta(1, opt$distr_ID[1], opt$distr_ID[2])
+		sigSq_Batch = rbeta(1, opt$distr_Batch[1], opt$distr_Batch[2])
+		sigSq_TimePoint = rbeta(1, opt$distr_Timepoint[1], opt$distr_Timepoint[2])
+
+		if( ! paste0('gene_', j) %in% tpGenes ){
+			sigSq_TimePoint = 0
+		}
+
+		# of each sample is observed once, no donor component
+		if(  max(table(info$Individual)) == 1){
+			sigSq_ID = 1e-4
+		}
+
+		# each individual has its own error variance
+		v_var = rbeta( nlevels(info$Individual), 1, 1) + 0.5
+		resid_var = model.matrix( ~ 0+Individual, info) %*% v_var
+
+		if( j <= n_de){
+			# Disease
+			eta_Disease = design_Disease %*% rnorm(nlevels(info$Disease))
+
+			sigSq_Disease = rbeta(1, opt$distr_Disease[1], opt$distr_Disease[2])
+			sigSq_Resid = max(1 - sigSq_ID - sigSq_Disease - sigSq_Batch - sigSq_TimePoint, .05)
+
+			# combine
+			y = scale(eta_ID) * (sigSq_ID-sigSq_Disease) + 
+				scale(eta_batch) * sigSq_Batch + 
+				scale(eta_Disease) * sigSq_Disease +	
+				scale(eta_TimePoint) * sigSq_TimePoint +			 
+				rnorm(nrow(info), 0, sd=sqrt(resid_var)) * sigSq_Resid
+		}else{
+			sigSq_Resid = max(1 - sigSq_ID - sigSq_Batch - sigSq_TimePoint, .05)
+
+			# combine
+			y = scale(eta_ID) * sigSq_ID + 
+				scale(eta_batch) * sigSq_Batch + 	
+				scale(eta_TimePoint) * sigSq_TimePoint +	 
+				rnorm(nrow(info), sd=sqrt(resid_var)) * sigSq_Resid
+		}
+		
+		y_clean = y - scale(eta_batch) * sigSq_Batch
+
+		list(y = t(y),
+			y_clean = t(y_clean))
+	})
+
+	# observed expression data
+	Y = do.call(rbind, lapply(simResults, function(x) x$y))
+	rownames(Y) = paste0("gene_", 1:nrow(Y))
+
+	# Oracle, with *perfect* batch correction
+	Y_oracle = do.call(rbind, lapply(simResults, function(x) x$y_clean))
+	rownames(Y_oracle) = paste0("gene_", 1:nrow(Y_oracle))
+
+	# Get metadata at the individal level.  info is at the experiment level
+	metadata = unique(with(info, data.frame(Individual, TimePoint, Disease, stringsAsFactors=FALSE)))
+	rownames(metadata) = with(metadata, paste(Individual, TimePoint, sep=':'))
+	metadata$Batch = "batch1"
+
+	unique_ID_idx = !duplicated(info$SampleID)
+
+	list(	Y 				= Y,
+			Y_oracle 		= Y_oracle,
+			metadata		= metadata,
+			unique_ID_idx 	= unique_ID_idx,
+			deGenes			= deGenes,
+			tpGenes			= tpGenes)
+}
+```
+
 ```{r simulation.params, fig.width=12, fig.height=4}
 
-n_cases = 100 # total number of individuals
-n_control = 10 # number of control individuals
-n_time_points = 2
+opt = list()
+
+opt$n_cases = 100 # total number of individuals
+opt$n_control = 10 # number of control individuals
+opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-p = 1000
-n_de = 200 # genes different between case and control
-n_tp = 200 # genes different between time points
-n_samples_per_batch = 20
-n_batches = n_cases*n_time_points / n_samples_per_batch
-n_batches
+opt$p = 400
+opt$n_de = 100 # genes different between case and control
+opt$n_tp = 100 # genes different between time points
+opt$n_samples_per_batch = 20
+opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
+opt$n_batches
 
 # n_batches_per_timePoint = n_cases / n_samples_per_batch
 
 
-opt = list()
-opt$distr_ID = estimate_beta_parameters( .1, .05)
+opt$distr_ID = estimate_beta_parameters( .3, .01)
 opt$distr_Disease = estimate_beta_parameters( .2, .05)
 opt$distr_Timepoint = estimate_beta_parameters( .3, .1)
-opt$distr_Batch = estimate_beta_parameters( .6, .05)
+opt$distr_Batch = estimate_beta_parameters( .3, .05)
 
 # Generate study design
-info = data.frame(	Individual = rep(paste0("ID", 1:n_cases), n_time_points),
-					TimePoint = unlist(lapply(1:n_time_points, function(x) rep(paste0("time", x), n_cases))),
+info = data.frame(	Individual = rep(paste0("ID", 1:opt$n_cases), opt$n_time_points),
+					TimePoint = unlist(lapply(1:opt$n_time_points, function(x) rep(paste0("time", x), opt$n_cases))),
 					Disease = "Case", 
 				stringsAsFactors=FALSE)
 
@@ -152,11 +253,11 @@ info = data.frame(	Individual = rep(paste0("ID", 1:n_cases), n_time_points),
 shifter <- function(x, n = 1) {
   if (n == 0) x else c(tail(x, -n), head(x, n))
 }
-x = sort((1:n_batches)^2, decreasing=TRUE)
+alpha = 2
+x = sort((1:opt$n_batches)^alpha, decreasing=TRUE)
 
+# x = c(.5, .5,  0, 0)
 prob = rbind(x, rev(x))
-
-
 prob = prob / rowSums(prob)
 rownames(prob) = paste0("time", 1:nrow(prob))
 colnames(prob) = paste0("batch", 1:ncol(prob))
@@ -164,14 +265,14 @@ colnames(prob) = paste0("batch", 1:ncol(prob))
 info$Batch = NA
 for( tp in unique(info$TimePoint) ){
 	i = which(info$TimePoint == tp)
-	info$Batch[i] = paste0("batch", sample.int(n_batches, length(i), replace=TRUE, prob[tp,]))
+	info$Batch[i] = paste0("batch", sample.int(opt$n_batches, length(i), replace=TRUE, prob[tp,]))
 }
 table(info$Batch)
 
 
 
 # add a set of shared controls to each batch
-infoControl.tmp = data.frame( Individual = paste0("ID", (n_cases+1):(n_cases+n_control)),
+infoControl.tmp = data.frame( Individual = paste0("ID", (opt$n_cases+1):(opt$n_cases+opt$n_control)),
 	TimePoint = "time0",
 	Disease = "control", stringsAsFactors=FALSE)
 
@@ -196,91 +297,14 @@ info$TimePoint = factor(info$TimePoint, unique(info$TimePoint))
 # plot study design
 ratio = with(info, length(unique(Batch))/ length(unique(Individual)) )
 ggplot(info, aes(Individual, fill=TimePoint, y=Batch)) + geom_tile() + theme_bw() + theme(aspect.ratio=ratio, legend.position="bottom", plot.title = element_text(hjust = 0.5), axis.text.x=element_blank()) + ggtitle("Sample batching")
+```
 
 
-# create design matrix for each variable
-design_ID = model.matrix( ~ 0+Individual,info)
-design_Disease = model.matrix( ~ 0+Disease,info)
-design_TimePoint = model.matrix( ~ 0+TimePoint,info)
-design_Batch = model.matrix( ~ 0+Batch,info)
+```{r run.simulation}
 
-# get names of differentially expressed genes
-deGenes = paste0("gene_", 1:n_de)
-tpGenes = paste0("gene_", sample.int( p, n_tp))
+simObj = generateSimulations( opt, info )
 
-# Simulate expression data
-simResults = lapply( 1:p, function(j){
-
-	# Individual
-	eta_ID = design_ID %*% rnorm(nlevels(info$Individual))
-
-	# Batch
-	eta_batch = design_Batch %*% rnorm(nlevels(info$Batch))
-
-	# TimePoint
-	eta_TimePoint = design_TimePoint %*% rnorm(nlevels(info$TimePoint))
-
-	# draw variance fractions
-	sigSq_ID = rbeta(1, opt$distr_ID[1], opt$distr_ID[2])
-	sigSq_Batch = rbeta(1, opt$distr_Batch[1], opt$distr_Batch[2])
-	sigSq_TimePoint = rbeta(1, opt$distr_Timepoint[1], opt$distr_Timepoint[2])
-
-	if( ! paste0('gene_', j) %in% tpGenes ){
-		sigSq_TimePoint = 0
-	}
-
-	# of each sample is observed once, no donor component
-	if(  max(table(info$Individual)) == 1){
-		sigSq_ID = 1e-4
-	}
-
-	# each individual has its own error variance
-	v_var = rbeta( nlevels(info$Individual), 1, 1) + 0.5
-	resid_var = model.matrix( ~ 0+Individual, info) %*% v_var
-
-	if( j <= n_de){
-		# Disease
-		eta_Disease = design_Disease %*% rnorm(nlevels(info$Disease))
-
-		sigSq_Disease = rbeta(1, opt$distr_Disease[1], opt$distr_Disease[2])
-		sigSq_Resid = max(1 - sigSq_ID - sigSq_Disease - sigSq_Batch - sigSq_TimePoint, .05)
-
-		# combine
-		y = scale(eta_ID) * (sigSq_ID-sigSq_Disease) + 
-			scale(eta_batch) * sigSq_Batch + 
-			scale(eta_Disease) * sigSq_Disease +	
-			scale(eta_TimePoint) * sigSq_TimePoint +			 
-			rnorm(nrow(info), 0, sd=sqrt(resid_var)) * sigSq_Resid
-	}else{
-		sigSq_Resid = max(1 - sigSq_ID - sigSq_Batch - sigSq_TimePoint, .05)
-
-		# combine
-		y = scale(eta_ID) * sigSq_ID + 
-			scale(eta_batch) * sigSq_Batch + 	
-			scale(eta_TimePoint) * sigSq_TimePoint +	 
-			rnorm(nrow(info), sd=sqrt(resid_var)) * sigSq_Resid
-	}
-	
-	y_clean = y - scale(eta_batch) * sigSq_Batch
-
-	list(y = t(y),
-		y_clean = t(y_clean))
-})
-
-# observed expression data
-Y = do.call(rbind, lapply(simResults, function(x) x$y))
-rownames(Y) = paste0("gene_", 1:nrow(Y))
-
-# with no batch effect
-Y_clean = do.call(rbind, lapply(simResults, function(x) x$y_clean))
-rownames(Y_clean) = paste0("gene_", 1:nrow(Y_clean))
-
-# Get metadata at the individal level.  info is at the experiment level
-metadata = unique(with(info, data.frame(Individual, TimePoint, Disease, stringsAsFactors=FALSE)))
-rownames(metadata) = with(metadata, paste(Individual, TimePoint, sep=':'))
-
-unique_ID_idx = !duplicated(info$SampleID)
-
+attach(simObj)
 ```
 
 # VariancePartition results
@@ -290,8 +314,8 @@ vp = fitExtractVarPartModel( Y, ~ (1|TimePoint) + (1|Disease) + (1|Batch) + (1|I
 fig1 = plotVarPart( vp ) + ggtitle("Observed data")
 
 # fit variancePartition model on clean data with no batch effect
-vp_clean = fitExtractVarPartModel( Y_clean, ~ (1|TimePoint) + (1|Disease) + (1|Batch) + (1|Individual), info)
-fig2 = plotVarPart( vp_clean ) + ggtitle("Oracle")
+vp_oracle = fitExtractVarPartModel( Y_oracle, ~ (1|TimePoint) + (1|Disease) + (1|Batch) + (1|Individual), info)
+fig2 = plotVarPart( vp_oracle ) + ggtitle("Oracle")
 
 grid.arrange(fig1, fig2, ncol=2)
 ```
@@ -300,59 +324,44 @@ grid.arrange(fig1, fig2, ncol=2)
 
 Y_list = list()
 
-# Simpler variancePartition call
-fitList = fitVarPartModel( Y, ~ (1|Batch) + (1|Individual:TimePoint), info, fxn = function(fit){ 
-		t(lme4::ranef(fit)$'Individual:TimePoint') + as.numeric(lme4::fixef(fit)[1]) 
-	}, showWarnings=FALSE)
+fitList = fitVarPartModel( Y, ~ (1|Batch) + (1|TimePoint) + (1|Disease) + (1|Individual) , info, fxn = function(fit){ 
+		# B = predict(fit, metadata[,c("Batch"),drop=FALSE], re.form=~(1|Batch))
+		# fit@resp$y[unique_ID_idx] - B	
+		B = predict(fit, info[,c("Batch"),drop=FALSE], re.form=~(1|Batch))
+		fit@resp$y - B
+	}, showWarnings=FALSE, BPPARAM=SerialParam())
 
 Y_corrected = do.call(rbind, fitList)
 rownames(Y_corrected) = rownames(Y)
+Y_list[["remove_batch_full_model"]] = Y_corrected
 
-Y_list[["BLUP"]] = Y_corrected
-
-# get residuals from modeling Batch as fixed effect
-fit = dream(Y, ~ Batch, info, computeResiduals=TRUE)
-Y_list[["fixed"]] = mean_per_sampleID(residuals(fit, Y), info)
-
-# get residuals from modeling Batch as random effect
-fit = dream(Y, ~ (1|Batch), info, computeResiduals=TRUE)
-Y_list[["random"]] = mean_per_sampleID(residuals(fit), info)
+Y_list[["remove_batch_simple"]] = removeBatchEffect(Y, info$Batch, design=model.matrix(~TimePoint + Disease, info))
 
 
-# fit = lmer(Y[2,] ~ (1|TimePoint) + (1|Batch) + (1|Individual), info)
-# df = data.frame(Expression = Y[5,], info)
-# ggplot(df, aes(Individual, Expression)) + geom_point() + theme_bw()
 ```
 
+
+
 # PCA using multiple types of corrections
-```{r pca, fig.width=12, fig.height=8}
+```{r pca, fig.width=8, fig.height=8}
 # Plot coloring by individual
-par(mfrow=c(2,3), pty='s')
+par(mfrow=c(2,2), pty='s')
 # PCA of data with no batch effect
-dcmp = prcomp( t(Y_clean), scale=TRUE)
-plot(dcmp$x[,1:2], col=info$Individual, pch=as.integer(info$Disease)+6, main="Oracle")
+dcmp = prcomp( t(Y_oracle), scale=TRUE)
+plot(dcmp$x[,1:2], col=info$TimePoint, pch=as.integer(info$Disease)+6, main="Oracle")
 
 # PCA of original data
 dcmp = prcomp( t(Y), scale=TRUE)
-plot(dcmp$x[,1:2], col=info$Individual, pch=as.integer(info$Disease)+6, main="Observed data")
+plot(dcmp$x[,1:2], col=info$TimePoint, pch=as.integer(info$Disease)+6, main="Observed data")
 
-plot.new()
+dcmp = prcomp( t(Y_list[["remove_batch_full_model"]]), scale=TRUE)
+plot(dcmp$x[,1:2], col=info$TimePoint, pch=as.integer(info$Disease)+6, main="Full model of replicates")
 
-rs = apply(Y_list[["BLUP"]], 1, sd)
-dcmp = prcomp( t(Y_list[["BLUP"]][rs>0,]), scale=TRUE)
-idx = match(colnames(Y_list[["BLUP"]]), rownames(metadata))
-plot(dcmp$x[,1:2], col=metadata$Individual[idx], pch=as.integer(metadata$Disease[idx])+6, main="Replicate: two step")
-
-Y2 = Y_list[["fixed"]]
-rs = apply(Y2, 1, sd)
-dcmp = prcomp( t(Y2[rs>0,]), scale=TRUE)
-idx = match(colnames(Y2), rownames(metadata))
-plot(dcmp$x[,1:2], col=metadata$Individual[idx], pch=as.integer(metadata$Disease[idx])+6, main="Simple v1")
-
-dcmp = prcomp( t(Y_list[["random"]]), scale=TRUE)
-idx = match(colnames(Y_list[["random"]]), rownames(metadata))
-plot(dcmp$x[,1:2], col=metadata$Individual[idx], pch=as.integer(metadata$Disease[idx])+6, main="Simple v2")
+dcmp = prcomp( t(Y_list[["remove_batch_simple"]]), scale=TRUE)
+plot(dcmp$x[,1:2], col=info$TimePoint, pch=as.integer(info$Disease)+6, main="Simple batch correction")
 ```
+
+
 
 
 Oracle DE should only observe each control once, does that matter?
@@ -360,23 +369,21 @@ Oracle DE should only observe each control once, does that matter?
 ```{r differential.expression}
 
 fitList = list()
-idx = match(info$SampleID, rownames(metadata))
-fitList[['Oracle']] = dream(Y_clean, ~ (1|Disease) + TimePoint + (1|Individual), metadata[idx,])
+idx = match(colnames(Y_oracle), info$idx)
+fitList[['Oracle']] = dream(Y_oracle, ~ (1|Disease) + TimePoint + (1|Individual), info[idx,])
 
-fitList[['Replicates: shrink batch mean towards equal']] = dream(Y, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), info)
+idx = match(colnames(Y), info$idx)
+fitList[['Replicates - joint model']] = dream(Y, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), info[idx,])
 
+fitList[['Replicates: Two step']] = dream(Y_list[["remove_batch_full_model"]], ~ (1|Disease) + TimePoint + (1|Individual), info)
 
-idx = match(colnames(Y_corrected), rownames(metadata))
-rs = apply(Y_corrected, 1, sd)
-fitList[['Replicates: Two step']] = dream(Y_corrected[rs > 0,], ~ (1|Disease) + TimePoint + (1|Individual), metadata[idx,])
+idx = (! duplicated(info$SampleID)) & (info$Disease == "Case")
+fitList[['No controls, no replicates, ignore batch']] = dream(Y[,idx], ~ TimePoint + (1|Individual), info[idx,])
 
-idx = ! duplicated(info$SampleID)
-fitList[['Naive']] = dream(Y[,idx], ~ TimePoint + (1|Individual), info[idx,])
-fitList[['Naive']] = eBayes(fitList[['Naive']])
-
-
-fitList[['Simple']] = dream(Y[,unique_ID_idx], ~ (1|Batch) + TimePoint + (1|Disease)+ (1|Individual), info[unique_ID_idx,])
-# fitList[['Simple']] = eBayes(fitList[['Simple']])
+tryCatch({
+idx = which(info$Disease == "Case")
+fitList[['No controls, no replicates']] = dream(Y[,idx], ~ (1|Batch) + TimePoint + (1|Individual), info[idx,])
+}, error = function(e) print("eRROR!"))
 
 res = lapply(names(fitList), function(method){
 
@@ -404,7 +411,14 @@ res = lapply(names(fitList), function(method){
 	})
 res = do.call(rbind, res)
 
-ord = c("Naive", "Simple", "Replicates: Two step", "Replicates: shrink batch mean towards equal", 'Oracle') 
+ord = c('No controls, no replicates, ignore batch',
+		'No controls, no replicates',
+		'Replicates: Two step',
+		'Replicates - joint model',
+		'Oracle') 
+ 
+# res$method[!res$method %in% ord]
+
 # "Replicates: set batch mean equal",
 res$method = factor(res$method, ord)
 
