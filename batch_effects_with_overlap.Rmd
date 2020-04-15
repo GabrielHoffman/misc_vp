@@ -288,7 +288,7 @@ evalBatchCorrection = function( simObj, info ){
 }
 
 
-evalDifferentialExpression = function(simObj, info, corrRetain=1){
+evalDifferentialExpression = function(simObj, info, corrRetain=.9){
 
 	Y = simObj$Y
 	Y_oracle = simObj$Y_oracle
@@ -299,28 +299,32 @@ evalDifferentialExpression = function(simObj, info, corrRetain=1){
 
 	fitList[['Replicates - joint model']] = dream(Y, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), info)
 
-	# add noise just to controls
-	# construct so that cor(Y[j,], Y_noise[j,])^2 = corrRetain
-	Y_noise = Y
-	idx = which(info$Disease == "control")
-	for(j in 1:nrow(Y) ){
-		y = Y_noise[j,idx]
-		Y_noise[j,idx] = y + rnorm(length(y), 0, sd=sqrt(var(y)*(1-corrRetain)/corrRetain)) 
-	}
-	# j=10
-	# cor(Y[j,idx], Y_noise[j,idx])^2
-	# corrRetain
+	for(v in corrRetain){
+		# add noise just to controls
+		# construct so that cor(Y[j,], Y_noise[j,])^2 = corrRetain
+		Y_noise = Y
+		idx = which(info$Disease == "control")
+		for(j in 1:nrow(Y) ){
+			y = Y_noise[j,idx]
+			Y_noise[j,idx] = y + rnorm(length(y), 0, sd=sqrt(var(y)*(1-v)/v)) 
+		}
+		# j=10
+		# cor(Y[j,idx], Y_noise[j,idx])^2
+		# corrRetain
 
-	fitList[['Replicates - joint model + noiseToControls']] = dream(Y_noise, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), info)
+		key = paste0('Replicates - joint model (R^2=',v, ')')
+
+		fitList[[key]] = dream(Y_noise, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), info)
+	}
 
 	fitList[['Replicates: Two step']] = dream(Y_list[["remove_batch_full_model"]], ~ (1|Disease) + TimePoint + (1|Individual), info)
-
-	idx = (! duplicated(info$SampleID)) & (info$Disease == "Case")
-	fitList[['Naive: No controls, no replicates, ignore batch']] = dream(Y[,idx], ~ TimePoint + (1|Individual), info[idx,])
 
 	idx = which(info$Disease == "Case")
 	fitList[['Simple: No controls, no replicates']] = dream(Y[,idx], ~ (1|Batch) + TimePoint + (1|Individual), info[idx,])
 	
+	idx = (! duplicated(info$SampleID)) & (info$Disease == "Case")
+	fitList[['Naive: No controls, no replicates, ignore batch']] = dream(Y[,idx], ~ TimePoint + (1|Individual), info[idx,])
+
 	fitList
 }
 
@@ -353,14 +357,14 @@ evalPerformance = function( fitList, coef, positives){
 		})
 	res = do.call(rbind, res)
 
-	ord = c('Naive: No controls, no replicates, ignore batch',
-			'Simple: No controls, no replicates',
-			'Replicates: Two step',
-			'Replicates - joint model + noiseToControls',
-			'Replicates - joint model',
-			'Oracle') 
+	# ord = c('Naive: No controls, no replicates, ignore batch',
+	# 		'Simple: No controls, no replicates',
+	# 		'Replicates: Two step',
+	# 		'Replicates - joint model + noiseToControls',
+	# 		'Replicates - joint model',
+	# 		'Oracle') 
  
-	res$method = factor(res$method, ord)
+	# res$method = factor(res$method, ord)
 
 	res
 }
@@ -379,7 +383,7 @@ opt$n_control = 10 # number of control individuals
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
 opt$p = 400
-opt$n_de = 0 # genes different between case and control
+opt$n_de = 100 # genes different between case and control
 opt$n_tp = 100 # genes different between time points
 opt$n_samples_per_batch = 20
 opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
@@ -390,8 +394,8 @@ opt$corrRetain = .8
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
 opt$distr_Disease = estimate_beta_parameters( .3, .01)
-opt$distr_Timepoint = estimate_beta_parameters( .06, .02)
-opt$distr_Batch = estimate_beta_parameters( .3, .01)
+opt$distr_Timepoint = estimate_beta_parameters( .08, .02)
+opt$distr_Batch = estimate_beta_parameters( .2, .01)
 
 # distribution of batch probabilites
 alpha = 2
@@ -428,7 +432,7 @@ plotCorrMatrix( C )
 Confounding score: `r format(C['Batch', 'TimePoint'], digits=3)`
 
 # VariancePartition results
-```{r variancePartition, fig.width=12, eval=FALSE}
+```{r variancePartition, fig.width=12}
 # fit variancePartition model
 vp = fitExtractVarPartModel( simObj$Y, ~ (1|TimePoint) + (1|Disease) + (1|Batch) + (1|Individual), info)
 fig1 = plotVarPart( vp ) + ggtitle("Observed data")
@@ -495,19 +499,18 @@ opt$n_control = 10 # number of control individuals
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
 opt$p = 400
-opt$n_de = 0 # genes different between case and control
+opt$n_de = 100 # genes different between case and control
 opt$n_tp = 100 # genes different between time points
 opt$n_samples_per_batch = 20
 opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
-opt$corrRetain = .9
 
 # n_batches_per_timePoint = n_cases / n_samples_per_batch
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
 opt$distr_Disease = estimate_beta_parameters( .3, .01)
 opt$distr_Timepoint = estimate_beta_parameters( .06, .02)
-opt$distr_Batch = estimate_beta_parameters( .3, .01)
+opt$distr_Batch = estimate_beta_parameters( .6, .01)
 
 # distribution of batch probabilites
 alpha = 2
@@ -527,7 +530,7 @@ simObj = generateSimulations( opt, info )
 
 Y_list = evalBatchCorrection( simObj, info )
 
-fitList = evalDifferentialExpression(simObj, info, opt$corrRetain)
+fitList = evalDifferentialExpression(simObj, info, c(.2, .5, .7, .9))
 
 res = evalPerformance( fitList, coef='TimePointtime2', positives = opt$tpGenes)
 
