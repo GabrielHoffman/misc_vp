@@ -54,8 +54,7 @@ Combine study design with statistical modelling to account for batch effects
 - In this simulation experiment, I also include the "oracle" scenerio where the batch correction is performed exactly as if provided by an oracle.
 
 
-is time point really within batch?
-are we interested in case control or timepoint comparison?
+is time point really within batch?are we interested in case control or timepoint comparison?
 
 
 ```{r load.packages, echo=FALSE, message=FALSE, results='hide'}
@@ -217,7 +216,10 @@ createInfo = function( opt ){
 						Disease = "Case", 
 					stringsAsFactors=FALSE)
 
-	prob = rbind(opt$prob, rev(opt$prob))
+	# alpha = .5: all equal
+	# alpha = 1 very different
+	p1 = seq(opt$alpha,1-opt$alpha, length.out=opt$n_batches)
+	prob = rbind(p1, p2=1-p1)
 	prob = prob / rowSums(prob)
 	rownames(prob) = paste0("time", 1:nrow(prob))
 	colnames(prob) = paste0("batch", 1:ncol(prob))
@@ -229,16 +231,17 @@ createInfo = function( opt ){
 	}
 	table(info$Batch)
 
-
 	# add a set of shared controls to each batch
 	infoControl.tmp = data.frame( Individual = paste0("ID", (opt$n_cases+1):(opt$n_cases+opt$n_control)),
 		TimePoint = "time1",
 		Disease = "control", stringsAsFactors=FALSE)
 
+	# only retain a subset of controls per batch
 	infoControl = c()
 	for( batch in unique(info$Batch) ){
+		i = sort(sample.int( opt$n_control, opt$n_controls_per_batch ))
 		infoControl.tmp$Batch = batch
-		infoControl = rbind(infoControl, infoControl.tmp)
+		infoControl = rbind(infoControl, infoControl.tmp[i,])
 	}
 
 	# combine cases and controls
@@ -288,16 +291,21 @@ evalBatchCorrection = function( simObj, info ){
 }
 
 
-evalDifferentialExpression = function(simObj, info, corrRetain=.9){
+evalDifferentialExpression = function(simObj, info, test = "TimePoint", corrRetain=.9){
 
 	Y = simObj$Y
 	Y_oracle = simObj$Y_oracle
 
 	fitList = list()
 	idx = match(colnames(Y_oracle), info$idx)
-	fitList[['Oracle']] = dream(Y_oracle, ~ (1|Disease) + TimePoint + (1|Individual), info[idx,])
+	form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
+	fitList[['Oracle']] = dream(Y_oracle, form, info[idx,])
 
-	fitList[['Replicates - joint model']] = dream(Y, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), info)
+
+	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
+	fitList[['Replicates - joint model']] = dream(Y, form, info)
 
 	for(v in corrRetain){
 		# add noise just to controls
@@ -314,16 +322,33 @@ evalDifferentialExpression = function(simObj, info, corrRetain=.9){
 
 		key = paste0('Replicates - joint model (R^2=',v, ')')
 
-		fitList[[key]] = dream(Y_noise, ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual), info)
+		form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
+							"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
+		fitList[[key]] = dream(Y_noise, form, info)
 	}
 
-	fitList[['Replicates: Two step']] = dream(Y_list[["remove_batch_full_model"]], ~ (1|Disease) + TimePoint + (1|Individual), info)
+	form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
+	fitList[['Replicates: Two step']] = dream(Y_list[["remove_batch_full_model"]], form, info)
 
-	idx = which(info$Disease == "Case")
-	fitList[['Simple: No controls, no replicates']] = dream(Y[,idx], ~ (1|Batch) + TimePoint + (1|Individual), info[idx,])
+	if( test == "TimePoint"){
+		idx = which(info$Disease == "Case")
+		form = ~ (1|Batch) + TimePoint + (1|Individual)
+		fitList[['Simple: No controls, no replicates']] = dream(Y[,idx], form, info[idx,])
+		
+		form = ~ Batch + TimePoint + (1|Individual)
+		fitList[['Simple: No controls, no replicates - fixed']] = dream(Y[,idx], form, info[idx,])
 	
-	idx = (! duplicated(info$SampleID)) & (info$Disease == "Case")
-	fitList[['Naive: No controls, no replicates, ignore batch']] = dream(Y[,idx], ~ TimePoint + (1|Individual), info[idx,])
+		idx = (! duplicated(info$SampleID)) & (info$Disease == "Case")
+		form = ~ TimePoint + (1|Individual)
+		fitList[['Naive: No controls, no replicates, ignore batch']] = dream(Y[,idx], form, info[idx,])
+	}else{
+		form = ~ (1|Batch) + (1|TimePoint) + Disease + (1|Individual)
+		fitList[['Simple']] = dream(Y, form, info)
+		
+		form = ~ Batch + (1|TimePoint) + Disease + (1|Individual)
+		fitList[['Simple: - fixed']] = dream(Y, form, info)
+	}
 
 	fitList
 }
@@ -374,12 +399,14 @@ shifter <- function(x, n = 1) {
 }
 ```
 
+
 ```{r simulation.params, fig.width=12, fig.height=4}
 
 opt = list()
 
 opt$n_cases = 100 # total number of individuals
 opt$n_control = 10 # number of control individuals
+opt$n_controls_per_batch = 10
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
 opt$p = 400
@@ -398,19 +425,15 @@ opt$distr_Timepoint = estimate_beta_parameters( .08, .02)
 opt$distr_Batch = estimate_beta_parameters( .2, .01)
 
 # distribution of batch probabilites
-alpha = 2
-opt$prob = sort((1:opt$n_batches)^alpha, decreasing=TRUE)
-# opt$prob = c(rep(1/opt$n_batches*2, opt$n_batches/2), rep(0, opt$n_batches/2))
-
+opt$alpha = .5
 
 # get names of differentially expressed genes
 opt$deGenes = paste0("gene_", sample.int(opt$p, opt$n_de))
 opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
-
 ```
 
 
-```{r run.simulation}
+```{r run.simulation, eval=FALSE}
 info = createInfo( opt )
 
 simObj = generateSimulations( opt, info )
@@ -418,21 +441,19 @@ simObj = generateSimulations( opt, info )
 Y_list = evalBatchCorrection( simObj, info )
 ```
 
-```{r plotStudy, fig.width=15, fig.height=3}
+```{r plotStudy, fig.width=15, fig.height=3, eval=FALSE}
 plotStudyDesign( info )
 ```
 
-```{r canCorPairs, fig.width=5, fig.height=5}
+```{r canCorPairs, fig.width=5, fig.height=5, eval=FALSE}
 suppressWarnings({
 C = canCorPairs(~ Individual + TimePoint + Disease + Batch, info)
 })
 plotCorrMatrix( C )
 ```
 
-Confounding score: `r format(C['Batch', 'TimePoint'], digits=3)`
-
 # VariancePartition results
-```{r variancePartition, fig.width=12}
+```{r variancePartition, fig.width=12, eval=FALSE}
 # fit variancePartition model
 vp = fitExtractVarPartModel( simObj$Y, ~ (1|TimePoint) + (1|Disease) + (1|Batch) + (1|Individual), info)
 fig1 = plotVarPart( vp ) + ggtitle("Observed data")
@@ -447,7 +468,7 @@ grid.arrange(fig1, fig2, ncol=2)
 
 # PCA using multiple types of corrections
 Green points are controls.  Red is case - time point 1, black is case - time point 2.
-```{r pca, fig.width=8, fig.height=8}
+```{r pca, fig.width=8, fig.height=8, eval=FALSE}
 # Plot coloring by individual
 par(mfrow=c(2,2), pty='s')
 # PCA of data with no batch effect
@@ -479,63 +500,86 @@ plot(dcmp$x[,1:2], col=info$Status, pch=as.integer(info$Disease)+6,
 ```
 
 # Performance for single simulation
-```{r differential.expression}
+```{r differential.expression, eval=FALSE}
 
 fitList = evalDifferentialExpression(simObj, info)
-
+  
 res = evalPerformance( fitList, coef='TimePointtime2', positives = simObj$tpGenes)
 
 ggplot(res, aes(method, AUPR, fill=method)) + geom_bar(stat="identity") + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5), legend.position="none") + xlab("Method") + scale_y_continuous(limits=c(0, 1.02), expand=c(0, 0)) + geom_hline(yintercept = res$AUPR.random[1], linetype="dashed") + coord_flip() 
 
 ```
 
-
 # Iterate through simulations
-```{r big.sim, eval=FALSE}
+```{r big.sim}
+
 opt = list()
 
-opt$n_cases = 100 # total number of individuals
+opt$n_cases = 20 # total number of individuals
 opt$n_control = 10 # number of control individuals
+opt$n_controls_per_batch = 10
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 400
+opt$p = 200
 opt$n_de = 100 # genes different between case and control
 opt$n_tp = 100 # genes different between time points
 opt$n_samples_per_batch = 20
 opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
+opt$corrRetain = .8
 
 # n_batches_per_timePoint = n_cases / n_samples_per_batch
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
 opt$distr_Disease = estimate_beta_parameters( .3, .01)
-opt$distr_Timepoint = estimate_beta_parameters( .06, .02)
-opt$distr_Batch = estimate_beta_parameters( .6, .01)
+opt$distr_Timepoint = estimate_beta_parameters( .1, .02)
+opt$distr_Batch = estimate_beta_parameters( .2, .01)
 
 # distribution of batch probabilites
-alpha = 2
-opt$prob = sort((1:opt$n_batches)^alpha, decreasing=TRUE)
-# opt$prob = c(rep(1/opt$n_batches*2, opt$n_batches/2), rep(0, opt$n_batches/2))
+opt$alpha = .5
 
 # get names of differentially expressed genes
 opt$deGenes = paste0("gene_", sample.int(opt$p, opt$n_de))
 opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 
-
 info = createInfo( opt )
 
-plotStudyDesign( info )
 
-simObj = generateSimulations( opt, info )
+# loop through simulations
+resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
+	opt$n_control = n_control
 
-Y_list = evalBatchCorrection( simObj, info )
+	res = lapply( c(2, 4, 6, 8, 10), function(n_controls_per_batch){
 
-fitList = evalDifferentialExpression(simObj, info, c(.2, .5, .7, .9))
+		opt$n_controls_per_batch = n_controls_per_batch
 
-res = evalPerformance( fitList, coef='TimePointtime2', positives = opt$tpGenes)
+		if( opt$n_controls_per_batch > opt$n_control ){
+			return(NULL)
+		}
+		message(opt$n_control, " ", opt$n_controls_per_batch)
 
+		res = lapply( c(.1, .2, .3, .4, .5), function(alpha){
+			opt$alpha = alpha
 
+			# Run sim
+			simObj = generateSimulations( opt, info )
 
+			Y_list = evalBatchCorrection( simObj, info )
+
+			fitListTP = evalDifferentialExpression(simObj, info, c(.2, .5, .7, .9), test="TimePoint")
+			resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
+			resTP$test = "TimePoint"
+
+			fitListDisease = evalDifferentialExpression(simObj, info, c(.2, .5, .7, .9), test="Disease")
+			resDisease = evalPerformance( fitListDisease, coef='Diseasecase', positives = opt$deGenes)	
+			resDisease$test = "Disease"
+
+			rbind(resTP, resDisease)
+	})
+	do.call(rbind, res)
+})
+do.call(rbind, resultsAll)
 
 ```
 
+How many shared controls is useful? vs noise add disease?
