@@ -577,7 +577,10 @@ resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
 			resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
 			resDisease$test = "Disease"
 
-			rbind(resTP, resDisease)
+			res = rbind(resTP, resDisease)
+			res$n_control = opt$n_control
+			res$n_controls_per_batch = opt$n_controls_per_batch
+			res$alpha = opt$alpha
 		})
 		do.call('rbind', res)
 	})
@@ -586,5 +589,21 @@ resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
 resultsAll = do.call('rbind', resultsAll)
 
 ```
+
+
+```{r plot.results}
+
+ggplot(resultsAll, aes(method, AUPR))
+
+
+
+
+
+
+
+
+
+```
+
 
 How many shared controls is useful? vs noise add disease?
