@@ -581,6 +581,7 @@ resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
 			res$n_control = opt$n_control
 			res$n_controls_per_batch = opt$n_controls_per_batch
 			res$alpha = opt$alpha
+			res
 		})
 		do.call('rbind', res)
 	})
