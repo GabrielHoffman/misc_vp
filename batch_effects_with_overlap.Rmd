@@ -578,7 +578,7 @@ resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
 	})
 	do.call(rbind, res)
 })
-do.call(rbind, resultsAll)
+resultsAll = do.call(rbind, resultsAll)
 
 ```
 
