@@ -515,7 +515,7 @@ ggplot(res, aes(method, AUPR, fill=method)) + geom_bar(stat="identity") + theme_
 
 opt = list()
 
-opt$n_cases = 20 # total number of individuals
+opt$n_cases = 100 # total number of individuals
 opt$n_control = 10 # number of control individuals
 opt$n_controls_per_batch = 10
 opt$n_time_points = 2
@@ -568,12 +568,12 @@ resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
 			Y_list = evalBatchCorrection( simObj, info )
 
 			message("\tDE TimePoint")
-			fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.9))
+			fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.6, .7, .8, .9))
 			resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
 			resTP$test = "TimePoint"
 
 			message("\tDE Disease")
-			fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.9))
+			fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
 			resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
 			resDisease$test = "Disease"
 
