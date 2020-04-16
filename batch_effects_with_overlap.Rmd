@@ -520,9 +520,9 @@ opt$n_control = 10 # number of control individuals
 opt$n_controls_per_batch = 10
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 200
-opt$n_de = 100 # genes different between case and control
-opt$n_tp = 100 # genes different between time points
+opt$p = 2000
+opt$n_de = 200 # genes different between case and control
+opt$n_tp = 200 # genes different between time points
 opt$n_samples_per_batch = 20
 opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
@@ -530,8 +530,8 @@ opt$corrRetain = .8
 
 # n_batches_per_timePoint = n_cases / n_samples_per_batch
 
-opt$distr_ID = estimate_beta_parameters( .3, .01)
-opt$distr_Disease = estimate_beta_parameters( .3, .01)
+opt$distr_ID = estimate_beta_parameters( .4, .01)
+opt$distr_Disease = estimate_beta_parameters( .1, .02)
 opt$distr_Timepoint = estimate_beta_parameters( .1, .02)
 opt$distr_Batch = estimate_beta_parameters( .2, .01)
 
@@ -592,14 +592,16 @@ resultsAll = do.call('rbind', resultsAll)
 ```
 
 
-```{r plot.results}
+```{r plot.results, fig.width=15}
 
-ggplot(resultsAll, aes(method, AUPR))
+# 
+df = resultsAll
+df = df[-grep("R\\^2", df$method),]
+
+ggplot(subset(df, test=="TimePoint"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test TimePoint")
 
 
-
-
-
+ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test Disease")
 
 
 
