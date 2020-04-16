@@ -279,7 +279,7 @@ evalBatchCorrection = function( simObj, info ){
 	fitList = fitVarPartModel( Y, ~ (1|Batch) + (1|TimePoint) + (1|Disease) + (1|Individual), info, fxn = function(fit){ 
 			B = predict(fit, info[,c("Batch"),drop=FALSE], re.form=~(1|Batch))
 			fit@resp$y - B
-		}, showWarnings=FALSE, BPPARAM=SerialParam())
+		}, showWarnings=FALSE, BPPARAM=SerialParam(), quiet=TRUE)
 
 	Y_corrected = do.call(rbind, fitList)
 	rownames(Y_corrected) = rownames(Y)
@@ -574,7 +574,7 @@ resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
 
 			message("\tDE Disease")
 			fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.9))
-			resDisease = evalPerformance( fitListDisease, coef='Diseasecase', positives = opt$deGenes)	
+			resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
 			resDisease$test = "Disease"
 
 			rbind(resTP, resDisease)
