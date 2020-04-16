@@ -6,6 +6,7 @@
 #' p-value correcting for the number of tests.
 #'
 #' @param pValues array of p-values 
+#' @param ntests number of tests to correct for.  If missing, just counts number of p-values
 #' @param na.rm: a logical indicating whether missing values should be removed.
 #'
 #' @details
@@ -17,13 +18,15 @@
 #'
 #' meta_sidak( p )
 #'
-meta_sidak = function(pValues, na.rm=FALSE){
+meta_sidak = function(pValues, ntests, na.rm=FALSE){
 
-	# get the number of tests
-	# if na.rm==TRUE, get the number of tests without NA values
-	n = ifelse( na.rm, sum(!is.na(pValues)), length(pValues))
+	if( missing(ntests) ){
+		# get the number of tests
+		# if na.rm==TRUE, get the number of tests without NA values
+		ntests = ifelse( na.rm, sum(!is.na(pValues)), length(pValues))
+	}
 
 	# return corrected p-value
-	1 - (1 - min(pValues, na.rm=na.rm))^n 
+	1 - (1 - min(pValues, na.rm=na.rm))^ntests
 }
 
