@@ -67,7 +67,7 @@ library(gridExtra)
 })
 
 set.seed(1)
-register(SnowParam(12))
+register(SnowParam(6))
 
 knitr::opts_chunk$set(
   echo=FALSE,
@@ -612,18 +612,23 @@ ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_l
 How many shared controls is useful? vs noise add disease?
 
 
-fig = ggplot() + theme_void() + annotate("text", x=0, y=0, label=bquote("Y ~ x\nY ~ x + z"), size=30) #
+fig = ggplot() + theme_bw() + annotate("text", x=0, y=0, label=bquote("Y ~ x\nY ~ x + z"), size=30) #
+
+fig = ggplot2()
+
+library(hexSticker)
+s = sticker( 
+          package="mvBIC", p_size=10, s_x=1, s_y=.75, s_width=1, s_height=1,
+          h_fill = "dodgerblue", h_color="grey70",
+          filename='~/Downloads/baseplot.pdf')
+
 
 
 library(hexSticker)
-sticker( fig,
-          package="mvBIC", p_size=10, s_x=1, s_y=.75, s_width=1.3, s_height=1,
+s = sticker( ggplot(),
+          package="mvBIC", p_size=10,
           h_fill = "dodgerblue", h_color="grey70",
-          filename='~/Downloads/baseplot.png')
-
-
-
-
+          filename='~/Downloads/baseplot.pdf')
 
 
 
