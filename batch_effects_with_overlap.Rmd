@@ -442,7 +442,7 @@ opt$distr_Timepoint = estimate_beta_parameters( .08, .02)
 opt$distr_Batch = estimate_beta_parameters( .4, .01)
 
 # distribution of batch probabilites
-opt$alpha = .5
+opt$alpha = .1
 
 # get names of differentially expressed genes
 opt$deGenes = paste0("gene_", sample.int(opt$p, opt$n_de))
