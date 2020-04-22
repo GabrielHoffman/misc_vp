@@ -577,7 +577,6 @@ resultsAll = lapply( c( 2, 4), function(n_control){
 
 			# Run sim
 			set.seed(1)
-			browser()
 			info = createInfo( opt )
 			simObj = generateSimulations( opt, info )
 
