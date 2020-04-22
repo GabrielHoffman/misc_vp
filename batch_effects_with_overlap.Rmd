@@ -298,14 +298,19 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 
 	fitList = list()
 	idx = match(colnames(Y_oracle), info$idx)
-	form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
-						"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
-	fitList[['Oracle']] = dream(Y_oracle, form, info[idx,], quiet=TRUE)
+	# form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint,# + (1|Individual),
+	# 					"Disease" 	= ~ Disease + (1|TimePoint))# + (1|Individual))
+
+	form = switch(test, "TimePoint" = ~ Disease + TimePoint,# + (1|Individual),
+						"Disease" 	= ~ Disease + TimePoint)# + (1|Individual))
+	fitList[['Oracle']] = eBayes(dream(Y_oracle, form, info[idx,], quiet=TRUE))
 
 
-	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
-						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
+	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint,#+ (1|Individual),
+						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint))# + (1|Individual))
 	fitList[['Replicates - joint model']] = dream(Y, form, info, quiet=TRUE)
+
+	return(fitList)
 
 	for(v in corrRetain){
 		# add noise just to controls
@@ -520,7 +525,7 @@ opt$n_control = 10 # number of control individuals
 opt$n_controls_per_batch = 10
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 2000
+opt$p = 400
 opt$n_de = 200 # genes different between case and control
 opt$n_tp = 200 # genes different between time points
 opt$n_samples_per_batch = 20
@@ -546,7 +551,7 @@ info = createInfo( opt )
 
 
 # loop through simulations
-resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
+resultsAll = lapply( c(0, 1,2,3,4), function(n_control){
 	opt$n_control = n_control
 
 	res = lapply( n_control, function(n_controls_per_batch){
@@ -557,7 +562,7 @@ resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
 			return(NULL)
 		}
 
-		res = lapply( c(.1, .2, .3, .4, .5), function(alpha){
+		res = lapply( c(.1, .2), function(alpha){
 			opt$alpha = alpha
 
 			message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
@@ -565,23 +570,24 @@ resultsAll = lapply( c(2,4,6, 8, 10), function(n_control){
 			# Run sim
 			simObj = generateSimulations( opt, info )
 
-			Y_list = evalBatchCorrection( simObj, info )
+			# Y_list = evalBatchCorrection( simObj, info )
 
 			message("\tDE TimePoint")
 			fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.6, .7, .8, .9))
 			resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
 			resTP$test = "TimePoint"
 
-			message("\tDE Disease")
-			fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
-			resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
-			resDisease$test = "Disease"
+			# message("\tDE Disease")
+			# fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
+			# resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
+			# resDisease$test = "Disease"
 
-			res = rbind(resTP, resDisease)
+			res = resTP
+			# res = rbind(resTP, resDisease)
 			res$n_control = opt$n_control
 			res$n_controls_per_batch = opt$n_controls_per_batch
 			res$alpha = opt$alpha
-			res
+			res   
 		})
 		do.call('rbind', res)
 	})
@@ -596,12 +602,17 @@ resultsAll = do.call('rbind', resultsAll)
 
 # 
 df = resultsAll
-df = df[-grep("R\\^2", df$method),]
+df = df[grep("R\\^2", df$method, invert=TRUE),]
 
-ggplot(subset(df, test=="TimePoint"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test TimePoint")
+aupr.random.TimePoint = unique(df[df$test=="TimePoint", 'AUPR.random'])
+aupr.random.Disease = unique(df[df$test=="Disease", 'AUPR.random'])
+
+ggplot(subset(df, test=="TimePoint"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test TimePoint") 	#+ geom_hline(yintercept=aupr.random.TimePoint, linetype='dashed')
 
 
-ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test Disease")
+# ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test Disease")
+#+ geom_hline(yintercept=aupr.random.Disease, linetype='dashed')
+
 
 
 
@@ -610,5 +621,17 @@ ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_l
 
 
 How many shared controls is useful? vs noise add disease?
+
+
+how many overlaps between batches
+	do we need a shared set, or some overlaps
+
+
+
+
+
+
+
+
 
 
