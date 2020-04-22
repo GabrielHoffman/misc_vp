@@ -313,11 +313,11 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
 	fitList[['Replicates - joint model']] = dream(Y, form, info, quiet=TRUE)
 
-	fit1 = fitList[['Replicates - joint model']]
+	# fit1 = fitList[['Replicates - joint model']]
 
-	idx = info$Disease=='Case'
-	form = ~ Batch + TimePoint + (1|Individual)
-	fit2 = dream(Y[,idx], form, info[idx,], quiet=TRUE)
+	# idx = info$Disease=='Case'
+	# form = ~ Batch + TimePoint + (1|Individual)
+	# fit2 = dream(Y[,idx], form, info[idx,], quiet=TRUE)
 
 	# plot(topTable(fit1, coef='TimePointtime2', sort.by="none", number=Inf)$t, 
 	# 	topTable(fit2, coef='TimePointtime2', sort.by="none", number=Inf)$t)
