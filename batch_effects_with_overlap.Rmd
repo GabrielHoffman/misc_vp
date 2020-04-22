@@ -307,7 +307,7 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 
 
 	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
-						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint + (1|Individual))
+						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
 	fitList[['Replicates - joint model']] = dream(Y, form, info, quiet=TRUE)
 
 	return(fitList)
