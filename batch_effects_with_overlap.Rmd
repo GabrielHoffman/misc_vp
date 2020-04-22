@@ -27,6 +27,9 @@ R
 rmarkdown::render("batch_effects_with_overlap.Rmd", output_dir='./', intermediates_dir='./')
 
 
+
+ # rm -fr batch_effects_with_overlap_*
+
 # ```{r}
 # knitr::knit_exit()
 # ```
@@ -568,6 +571,7 @@ resultsAll = lapply( c(0, 2, 4), function(n_control){
 			message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
 
 			# Run sim
+			set.seed(1)
 			simObj = generateSimulations( opt, info )
 
 			# Y_list = evalBatchCorrection( simObj, info )
