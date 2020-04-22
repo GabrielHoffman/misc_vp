@@ -299,16 +299,15 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 
 	fitList = list()
 	idx = match(colnames(Y_oracle), info$idx)
-	# form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint,# + (1|Individual),
-	# 					"Disease" 	= ~ Disease + (1|TimePoint))# + (1|Individual))
-
-	form = switch(test, "TimePoint" = ~ Disease + TimePoint,# + (1|Individual),
-						"Disease" 	= ~ Disease + TimePoint)# + (1|Individual))
+	form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|TimePoint + (1|Individual))
+	# form = switch(test, "TimePoint" = ~ Disease + TimePoint,# + (1|Individual),
+	# 					"Disease" 	= ~ Disease + TimePoint)# + (1|Individual))
 	fitList[['Oracle']] = eBayes(dream(Y_oracle, form, info[idx,], quiet=TRUE))
 
 
-	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint,#+ (1|Individual),
-						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint))# + (1|Individual))
+	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint + (1|Individual))
 	fitList[['Replicates - joint model']] = dream(Y, form, info, quiet=TRUE)
 
 	return(fitList)
@@ -552,7 +551,7 @@ info = createInfo( opt )
 
 
 # loop through simulations
-resultsAll = lapply( c(0, 1,2,3,4), function(n_control){
+resultsAll = lapply( c(0, 2, 4), function(n_control){
 	opt$n_control = n_control
 
 	res = lapply( n_control, function(n_controls_per_batch){
@@ -563,7 +562,7 @@ resultsAll = lapply( c(0, 1,2,3,4), function(n_control){
 			return(NULL)
 		}
 
-		res = lapply( c(.1, .2), function(alpha){
+		res = lapply( c(.1), function(alpha){
 			opt$alpha = alpha
 
 			message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
