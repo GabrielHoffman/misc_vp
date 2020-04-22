@@ -432,7 +432,7 @@ opt$n_tp = 100 # genes different between time points
 opt$n_samples_per_batch = 20
 opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
-opt$corrRetain = .8
+opt$corrRetain = .8 
 
 # n_batches_per_timePoint = n_cases / n_samples_per_batch
 
@@ -454,18 +454,18 @@ opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 info = createInfo( opt )
 
 simObj = generateSimulations( opt, info )
-
+ 
 Y_list = evalBatchCorrection( simObj, info )
 ```
 
 ```{r plotStudy, fig.width=15, fig.height=3}
-plotStudyDesign( info )
+plotStudyDesign( info ) 
 ```
 
 ```{r canCorPairs, fig.width=5, fig.height=5}
 suppressWarnings({
 C = canCorPairs(~ Individual + TimePoint + Disease + Batch, info)
-})
+}) 
 plotCorrMatrix( C )
 ```
 
