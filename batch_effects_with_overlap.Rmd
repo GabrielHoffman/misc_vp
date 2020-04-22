@@ -300,7 +300,7 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 	fitList = list()
 	idx = match(colnames(Y_oracle), info$idx)
 	form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
-						"Disease" 	= ~ Disease + (1|TimePoint + (1|Individual))
+						"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
 	# form = switch(test, "TimePoint" = ~ Disease + TimePoint,# + (1|Individual),
 	# 					"Disease" 	= ~ Disease + TimePoint)# + (1|Individual))
 	fitList[['Oracle']] = eBayes(dream(Y_oracle, form, info[idx,], quiet=TRUE))
