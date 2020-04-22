@@ -66,7 +66,7 @@ library(lme4)
 library(gridExtra)
 })
 
-set.seed(1)
+# set.seed(1)
 # register(SnowParam(6))
 register(SerialParam())
 
@@ -589,7 +589,7 @@ resultsAll = lapply( c(0, 2, 4), function(n_control){
 			res$alpha = opt$alpha
 			res   
 		})
-		do.call('rbind', res)
+		do.call('rbind', res)    
 	})
 	do.call('rbind', res)
 })
