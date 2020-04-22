@@ -610,7 +610,7 @@ resultsAll = do.call('rbind', resultsAll)
 
 ```{r plot.results, fig.width=15}
 
-# 
+#   
 df = resultsAll
 df = df[grep("R\\^2", df$method, invert=TRUE),]
 
