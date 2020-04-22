@@ -313,6 +313,17 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
 	fitList[['Replicates - joint model']] = dream(Y, form, info, quiet=TRUE)
 
+	fit1 = fitList[['Replicates - joint model']]
+
+	idx = info$Disease=='Case'
+	form = ~ Batch + TimePoint + (1|Individual)
+	fit2 = dream(Y[,idx], form, info[idx,], quiet=TRUE)
+
+	plot(topTable(fit1, coef='TimePointtime2', sort.by="none", number=Inf)$t, 
+		topTable(fit2, coef='TimePointtime2', sort.by="none", number=Inf)$t)
+
+
+
 	# for(v in corrRetain){
 	# 	# add noise just to controls
 	# 	# construct so that cor(Y[j,], Y_noise[j,])^2 = corrRetain
@@ -428,7 +439,7 @@ opt$corrRetain = .8
 opt$distr_ID = estimate_beta_parameters( .3, .01)
 opt$distr_Disease = estimate_beta_parameters( .3, .01)
 opt$distr_Timepoint = estimate_beta_parameters( .08, .02)
-opt$distr_Batch = estimate_beta_parameters( .2, .01)
+opt$distr_Batch = estimate_beta_parameters( .4, .01)
 
 # distribution of batch probabilites
 opt$alpha = .5
@@ -439,7 +450,7 @@ opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 ```
 
 
-```{r run.simulation, eval=FALSE}
+```{r run.simulation}
 info = createInfo( opt )
 
 simObj = generateSimulations( opt, info )
@@ -447,11 +458,11 @@ simObj = generateSimulations( opt, info )
 Y_list = evalBatchCorrection( simObj, info )
 ```
 
-```{r plotStudy, fig.width=15, fig.height=3, eval=FALSE}
+```{r plotStudy, fig.width=15, fig.height=3}
 plotStudyDesign( info )
 ```
 
-```{r canCorPairs, fig.width=5, fig.height=5, eval=FALSE}
+```{r canCorPairs, fig.width=5, fig.height=5}
 suppressWarnings({
 C = canCorPairs(~ Individual + TimePoint + Disease + Batch, info)
 })
@@ -459,7 +470,7 @@ plotCorrMatrix( C )
 ```
 
 # VariancePartition results
-```{r variancePartition, fig.width=12, eval=FALSE}
+```{r variancePartition, fig.width=12}
 # fit variancePartition model
 vp = fitExtractVarPartModel( simObj$Y, ~ (1|TimePoint) + (1|Disease) + (1|Batch) + (1|Individual), info)
 fig1 = plotVarPart( vp ) + ggtitle("Observed data")
@@ -474,7 +485,7 @@ grid.arrange(fig1, fig2, ncol=2)
 
 # PCA using multiple types of corrections
 Green points are controls.  Red is case - time point 1, black is case - time point 2.
-```{r pca, fig.width=8, fig.height=8, eval=FALSE}
+```{r pca, fig.width=8, fig.height=8}
 # Plot coloring by individual
 par(mfrow=c(2,2), pty='s')
 # PCA of data with no batch effect
@@ -506,7 +517,7 @@ plot(dcmp$x[,1:2], col=info$Status, pch=as.integer(info$Disease)+6,
 ```
 
 # Performance for single simulation
-```{r differential.expression, eval=FALSE}
+```{r differential.expression}
 
 fitList = evalDifferentialExpression(simObj, info, Y_list)
   
@@ -536,10 +547,10 @@ opt$corrRetain = .8
 
 # n_batches_per_timePoint = n_cases / n_samples_per_batch
 
-opt$distr_ID = estimate_beta_parameters( .4, .01)
-opt$distr_Disease = estimate_beta_parameters( .1, .02)
-opt$distr_Timepoint = estimate_beta_parameters( .1, .02)
-opt$distr_Batch = estimate_beta_parameters( .2, .01)
+opt$distr_ID = estimate_beta_parameters( .3, .01)
+opt$distr_Disease = estimate_beta_parameters( .3, .01)
+opt$distr_Timepoint = estimate_beta_parameters( .08, .02)
+opt$distr_Batch = estimate_beta_parameters( .4, .01)
 
 # distribution of batch probabilites
 opt$alpha = .5
