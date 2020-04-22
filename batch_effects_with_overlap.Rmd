@@ -494,7 +494,7 @@ pct = format(dcmp$sdev[1:2]^2 / sum(dcmp$sdev^2)*100, digits=3)
 plot(dcmp$x[,1:2], col=info$Status, pch=as.integer(info$Disease)+6, 
 	xlab = paste0('PC1 (', pct[1], '%)'), ylab = paste0('PC2 (', pct[1], '%)'),
 	main="Oracle")
-
+   
 # PCA of original data
 dcmp = prcomp( t(simObj$Y), scale=TRUE)
 pct = format(dcmp$sdev[1:2]^2 / sum(dcmp$sdev^2)*100, digits=3)
