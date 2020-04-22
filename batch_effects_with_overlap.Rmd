@@ -319,10 +319,8 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 	form = ~ Batch + TimePoint + (1|Individual)
 	fit2 = dream(Y[,idx], form, info[idx,], quiet=TRUE)
 
-	plot(topTable(fit1, coef='TimePointtime2', sort.by="none", number=Inf)$t, 
-		topTable(fit2, coef='TimePointtime2', sort.by="none", number=Inf)$t)
-
-
+	# plot(topTable(fit1, coef='TimePointtime2', sort.by="none", number=Inf)$t, 
+	# 	topTable(fit2, coef='TimePointtime2', sort.by="none", number=Inf)$t)
 
 	# for(v in corrRetain){
 	# 	# add noise just to controls
