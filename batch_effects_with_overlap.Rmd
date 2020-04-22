@@ -540,7 +540,7 @@ opt$n_time_points = 2
 opt$p = 400
 opt$n_de = 200 # genes different between case and control
 opt$n_tp = 200 # genes different between time points
-opt$n_samples_per_batch = 20
+opt$n_samples_per_batch = 10
 opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
 opt$corrRetain = .8
@@ -559,8 +559,6 @@ opt$alpha = .5
 opt$deGenes = paste0("gene_", sample.int(opt$p, opt$n_de))
 opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 
-info = createInfo( opt )
-
 
 # loop through simulations
 resultsAll = lapply( c(0, 2, 4), function(n_control){
@@ -574,13 +572,14 @@ resultsAll = lapply( c(0, 2, 4), function(n_control){
 			return(NULL)
 		}
 
-		res = lapply( c(0.01, 0.05, 0.1), function(alpha){
+		res = lapply( c(0.01, 0.05, 0.1, .2), function(alpha){
 			opt$alpha = alpha
 
 			message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
 
 			# Run sim
 			set.seed(1)
+			info = createInfo( opt )
 			simObj = generateSimulations( opt, info )
 
 			# Y_list = evalBatchCorrection( simObj, info )
