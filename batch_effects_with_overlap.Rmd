@@ -663,13 +663,13 @@ resultsAll = lapply( c( 2, 4, 8, 12), function(n_control){
 
 			message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
 
-			res = lapply( c(4, 12), function(n_samples_per_batch){
+			res = lapply( c(15, 30), function(n_samples_per_batch){
 
 				opt$n_samples_per_batch = n_samples_per_batch
 
-				if( opt$n_samples_per_batch >= opt$n_control ){
-					return(NULL)
-				}
+				# if( opt$n_samples_per_batch >= opt$n_control ){
+				# 	return(NULL)
+				# }
 
 				# Run sim
 				set.seed(1)
