@@ -658,7 +658,7 @@ resultsAll = lapply( c( 2, 4, 8, 12), function(n_control){
 			return(NULL)
 		}
 
-		res = lapply( c(0.1, function(alpha){
+		res = lapply( c(0.1), function(alpha){
 			opt$alpha = alpha
 
 			message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
