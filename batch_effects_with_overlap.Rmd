@@ -590,7 +590,7 @@ opt$distr_Timepoint = estimate_beta_parameters( .08, .02)
 opt$distr_Batch = estimate_beta_parameters( .4, .01)
 
 # distribution of batch probabilites
-opt$alpha = .5
+# opt$alpha = .5
 
 # get names of differentially expressed genes
 opt$deGenes = paste0("gene_", sample.int(opt$p, opt$n_de))
@@ -598,8 +598,9 @@ opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 
 
 # loop through simulations
-resultsAll = lapply( c( 2, 4, 8, 10), function(n_control){
+resultsAll = lapply( c( 2, 10), function(n_control){
 	opt$n_control = n_control
+
 
 	res = lapply( n_control, function(n_controls_per_batch){
 
@@ -609,34 +610,42 @@ resultsAll = lapply( c( 2, 4, 8, 10), function(n_control){
 			return(NULL)
 		}
 
-		res = lapply( c(0.01, 0.05, 0.1, .2, .3, .4, .5), function(alpha){
+		res = lapply( c(0.01, 0.1,.5), function(alpha){
 			opt$alpha = alpha
+
 
 			message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
 
-			# Run sim
-			set.seed(1)
-			info = createInfo( opt )
-			simObj = generateSimulations( opt, info )
+			res = lapply( c(4, 8, 12), function(n_samples_per_batch){
 
-			# Y_list = evalBatchCorrection( simObj, info )
+				opt$n_samples_per_batch = n_samples_per_batch
 
-			message("\tDE TimePoint")
-			fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.6, .7, .8, .9))
-			resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
-			resTP$test = "TimePoint"
+				# Run sim
+				set.seed(1)
+				info = createInfo( opt )
+				simObj = generateSimulations( opt, info )
 
-			# message("\tDE Disease")
-			# fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
-			# resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
-			# resDisease$test = "Disease"
+				# Y_list = evalBatchCorrection( simObj, info )
 
-			res = resTP
-			# res = rbind(resTP, resDisease)
-			res$n_control = opt$n_control
-			res$n_controls_per_batch = opt$n_controls_per_batch
-			res$alpha = opt$alpha
-			res   
+				message("\tDE TimePoint")
+				fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.6, .7, .8, .9))
+				resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
+				resTP$test = "TimePoint"
+
+				# message("\tDE Disease")
+				# fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
+				# resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
+				# resDisease$test = "Disease"
+
+				res = resTP
+				# res = rbind(resTP, resDisease)
+				res$n_control = opt$n_control
+				res$n_samples_per_batch = opt$n_samples_per_batch
+				res$n_controls_per_batch = opt$n_controls_per_batch
+				res$alpha = opt$alpha
+				res
+			})
+			do.call('rbind', res)     
 		})
 		do.call('rbind', res)    
 	})
