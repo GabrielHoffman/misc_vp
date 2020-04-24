@@ -380,13 +380,17 @@ evalPerformance = function( fitList, coef, positives){
 		# 	tab = rbind(tab, tab_excluded)
 		# }
 
+		# AUPR
 		idx = rownames(tab) %in% positives
-
 		pr <- pr.curve( -log10(tab$P.Value[idx]), -log10(tab$P.Value[!idx]), curve=TRUE, rand.compute=TRUE )
+
+		# False positive rate
+		FPR = sum(tab$P.Value[!idx] < 0.05) / length(tab$P.Value[!idx])
 
 		data.frame( method 		= method, 
 					AUPR 		= pr$auc.integral, 
 					AUPR.random = pr$rand$auc.integral,
+					FPR 		= FPR,
 					stringsAsFactors=FALSE)
 		})
 	res = do.call(rbind, res)
@@ -413,7 +417,7 @@ shifter <- function(x, n = 1) {
 
 opt = list()
 
-opt$n_cases = 100 # total number of individuals
+opt$n_cases = 40 # total number of individuals
 opt$n_control = 10 # number of control individuals
 opt$n_controls_per_batch = 10
 opt$n_time_points = 2
@@ -421,7 +425,7 @@ opt$n_time_points = 2
 opt$p = 400
 opt$n_de = 100 # genes different between case and control
 opt$n_tp = 100 # genes different between time points
-opt$n_samples_per_batch = 20
+opt$n_samples_per_batch = 4
 opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
 opt$corrRetain = .8 
@@ -544,9 +548,11 @@ grid.arrange(show_mean(fig1),
 
 fitList = evalDifferentialExpression(simObj, info, Y_list)
   
-res = evalPerformance( fitList, coef='TimePointtime2', positives = simObj$tpGenes)
+res = evalPerformance( fitList[1:4], coef='TimePointtime2', positives = simObj$tpGenes)
 
 ggplot(res, aes(method, AUPR, fill=method)) + geom_bar(stat="identity") + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5), legend.position="none") + xlab("Method") + scale_y_continuous(limits=c(0, 1.02), expand=c(0, 0)) + geom_hline(yintercept = res$AUPR.random[1], linetype="dashed") + coord_flip() 
+
+ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5), legend.position="none") + xlab("Method") + scale_y_continuous(limits=c(0, .5), expand=c(0, 0)) + geom_hline(yintercept = 0.05, linetype="dashed") + coord_flip() 
 
 ```
 
@@ -651,6 +657,8 @@ aupr.random.TimePoint = unique(df[df$test=="TimePoint", 'AUPR.random'])
 aupr.random.Disease = unique(df[df$test=="Disease", 'AUPR.random'])
 
 ggplot(subset(df, test=="TimePoint"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test TimePoint") 	#+ geom_hline(yintercept=aupr.random.TimePoint, linetype='dashed')
+
+ggplot(subset(df, test=="TimePoint"), aes(n_control, FPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test TimePoint") 
 
 
 # ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test Disease")
