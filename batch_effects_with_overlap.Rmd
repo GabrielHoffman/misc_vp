@@ -313,15 +313,6 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
 	fitList[['Replicates - joint model']] = dream(Y, form, info, quiet=TRUE)
 
-	# fit1 = fitList[['Replicates - joint model']]
-
-	# idx = info$Disease=='Case'
-	# form = ~ Batch + TimePoint + (1|Individual)
-	# fit2 = dream(Y[,idx], form, info[idx,], quiet=TRUE)
-
-	# plot(topTable(fit1, coef='TimePointtime2', sort.by="none", number=Inf)$t, 
-	# 	topTable(fit2, coef='TimePointtime2', sort.by="none", number=Inf)$t)
-
 	# for(v in corrRetain){
 	# 	# add noise just to controls
 	# 	# construct so that cor(Y[j,], Y_noise[j,])^2 = corrRetain
@@ -355,13 +346,9 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 		form = ~ Batch + TimePoint + Individual
 		fitList[['Simple: No controls, no replicates (fixed)']] = eBayes(dream(Y[,idx], form, info[idx,], quiet=TRUE))
 		
-
-		# form = ~ Batch + TimePoint + (1|Individual)
-		# fitList[['Simple: No controls, no replicates - fixed']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
-	
-		# idx = (! duplicated(info$SampleID)) & (info$Disease == "Case")
-		# form = ~ TimePoint + (1|Individual)
-		# fitList[['Naive: No controls, no replicates, ignore batch']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
+		idx = (! duplicated(info$SampleID)) & (info$Disease == "Case")
+		form = ~ TimePoint + Individual
+		fitList[['Naive: No controls, no replicates, ignore batch (fixed)']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
 	}else{
 		form = ~ (1|Batch) + (1|TimePoint) + Disease + (1|Individual)
 		fitList[['Simple']] = dream(Y, form, info, quiet=TRUE)
