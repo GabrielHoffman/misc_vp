@@ -79,7 +79,7 @@ knitr::opts_chunk$set(
   message=FALSE,
   error = FALSE,
   tidy = FALSE,
-  cache = TRUE,
+  cache = FALSE,
   cache.lazy = FALSE,  dev = c("png", "pdf"), 
   fig.width=7, fig.height=7)
 
@@ -524,6 +524,14 @@ res = evalPerformance( fitList, coef='TimePointtime2', positives = simObj$tpGene
 ggplot(res, aes(method, AUPR, fill=method)) + geom_bar(stat="identity") + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5), legend.position="none") + xlab("Method") + scale_y_continuous(limits=c(0, 1.02), expand=c(0, 0)) + geom_hline(yintercept = res$AUPR.random[1], linetype="dashed") + coord_flip() 
 
 ```
+
+
+ # rm -fr batch_effects_with_overlap_*
+
+# ```{r}
+# knitr::knit_exit()
+# ```
+
 
 # Iterate through simulations
 ```{r big.sim}
