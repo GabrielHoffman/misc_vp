@@ -349,14 +349,13 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 	if( test == "TimePoint"){
 		idx = which(info$Disease == "Case")
 		form = ~ (1|Batch) + TimePoint + (1|Individual)
-		fitList[['Simple: No controls, no replicates']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
-
+		fitList[['Simple: No controls, no replicates (random)']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
 
 		idx = which(info$Disease == "Case")
 		form = ~ Batch + TimePoint + Individual
-		fitList[['Simple: No controls, no replicates']] = eBayes(dream(Y[,idx], form, info[idx,], quiet=TRUE))
+		fitList[['Simple: No controls, no replicates (fixed)']] = eBayes(dream(Y[,idx], form, info[idx,], quiet=TRUE))
 		
-		
+
 		# form = ~ Batch + TimePoint + (1|Individual)
 		# fitList[['Simple: No controls, no replicates - fixed']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
 	
