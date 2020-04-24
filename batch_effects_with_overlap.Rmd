@@ -300,6 +300,7 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 	Y = simObj$Y
 	Y_oracle = simObj$Y_oracle
 
+	suppressWarnings({
 	fitList = list()
 	idx = match(colnames(Y_oracle), info$idx)
 	form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
@@ -356,6 +357,7 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 		form = ~ Batch + (1|TimePoint) + Disease + (1|Individual)
 		fitList[['Simple: - fixed']] = dream(Y, form, info, quiet=TRUE)
 	}
+	})
 
 	fitList
 }
@@ -506,6 +508,37 @@ plot(dcmp$x[,1:2], col=info$Status, pch=as.integer(info$Disease)+6,
 
 ```
 
+# Gene expression after correction
+```{r expr.residuals}
+library(gginnards)
+
+show_mean = function(fig){
+	delete_layers(fig, idx=2) + stat_summary(geom = "crossbar", width = 0.65,
+        fatten = 0, color = "black", fun.data = function(x) {
+            return(c(y = mean(x), ymin = mean(x), ymax = mean(x)))})
+}
+
+df = data.frame(y = t(t(simObj$Y_oracle[1,])), info, stringsAsFactors=FALSE)
+fig1 = plotStratify( y ~ Batch, df, main="Oracle", sort=FALSE, legend=FALSE)
+
+df = data.frame(y = t(t(simObj$Y[1,])), info)
+fig2 = plotStratify( y ~ Batch, df, main="Observed data", sort=FALSE, legend=FALSE)
+
+exprResid = Y_list[['remove_batch_full_model']]
+df = data.frame(y = t(t(exprResid[1,])), info)
+fig3 = plotStratify( y ~ Batch, df, main="Full model", sort=FALSE, legend=FALSE)
+
+exprResid = Y_list[['remove_batch_simple']]
+df = data.frame(y = t(t(exprResid[1,])), info)
+fig4 = plotStratify( y ~ Batch, df, main="Simple model", sort=FALSE, legend=FALSE)
+
+grid.arrange(show_mean(fig1), 
+			show_mean(fig2), 
+			show_mean(fig3), 
+			show_mean(fig4))
+```
+
+
 # Performance for single simulation
 ```{r differential.expression}
 
@@ -530,7 +563,7 @@ ggplot(res, aes(method, AUPR, fill=method)) + geom_bar(stat="identity") + theme_
 
 opt = list()
 
-opt$n_cases = 100 # total number of individuals
+opt$n_cases = 20 # total number of individuals
 opt$n_control = 10 # number of control individuals
 opt$n_controls_per_batch = 10
 opt$n_time_points = 2
@@ -538,7 +571,7 @@ opt$n_time_points = 2
 opt$p = 400
 opt$n_de = 200 # genes different between case and control
 opt$n_tp = 200 # genes different between time points
-opt$n_samples_per_batch = 10
+opt$n_samples_per_batch = 4
 opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
 opt$corrRetain = .8
