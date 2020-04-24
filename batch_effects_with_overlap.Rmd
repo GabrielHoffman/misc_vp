@@ -220,6 +220,9 @@ generateSimulations = function( opt, info ){
 
 createInfo = function( opt ){
 
+	n_batches = with(opt, n_cases*n_time_points / (n_samples_per_batch - n_controls_per_batch))
+	n_batches = ceiling(n_batches)
+
 	# Generate study design
 	info = data.frame(	Individual = rep(paste0("ID", 1:opt$n_cases), opt$n_time_points),
 						TimePoint = unlist(lapply(1:opt$n_time_points, function(x) rep(paste0("time", x), opt$n_cases))),
@@ -228,7 +231,7 @@ createInfo = function( opt ){
 
 	# alpha = .5: all equal
 	# alpha = 1 very different
-	p1 = seq(opt$alpha,1-opt$alpha, length.out=opt$n_batches)
+	p1 = seq(opt$alpha,1-opt$alpha, length.out=n_batches)
 	prob = rbind(p1, p2=1-p1)
 	prob = prob / rowSums(prob)
 	rownames(prob) = paste0("time", 1:nrow(prob))
@@ -237,9 +240,27 @@ createInfo = function( opt ){
 	info$Batch = NA
 	for( tp in unique(info$TimePoint) ){
 		i = which(info$TimePoint == tp)
-		info$Batch[i] = paste0("batch", sample.int(opt$n_batches, length(i), replace=TRUE, prob[tp,]))
+		info$Batch[i] = paste0("batch", sample.int(n_batches, length(i), replace=TRUE, prob[tp,]))
 	}
-	table(info$Batch)
+	info$Batch = factor(info$Batch, paste0('batch', 1:n_batches))
+	tab = table(info$Batch)
+	targetCount = ceiling(nrow(info) / n_batches)
+
+	# if batches have too many counts, re-allocaite them to other batches
+	while( max(tab) > targetCount ){
+
+		# get batch with max counts
+		btch = names(tab)[which.max(tab)]
+
+		# sample a set to switch batches
+		i = sample(which(info$Batch == btch), max(tab)-targetCount)
+
+		# draw new batch assignments from batches which are too small
+		batch_small = names(tab)[which(tab < targetCount)]
+
+		info$Batch[i] = sample(batch_small, length(i), replace=TRUE, prob[tp,batch_small])	
+		tab = table(info$Batch)
+	}
 
 	# add a set of shared controls to each batch
 	infoControl.tmp = data.frame( Individual = paste0("ID", (opt$n_cases+1):(opt$n_cases+opt$n_control)),
@@ -424,7 +445,7 @@ shifter <- function(x, n = 1) {
 opt = list()
 
 opt$n_cases = 40 # total number of individuals
-opt$n_control = 10 # number of control individuals
+opt$n_control = 2 # number of control individuals
 opt$n_controls_per_batch = 2
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
@@ -432,8 +453,8 @@ opt$p = 400
 opt$n_de = 100 # genes different between case and control
 opt$n_tp = 100 # genes different between time points
 opt$n_samples_per_batch = 4
-opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
-opt$n_batches
+# opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
+# opt$n_batches
 opt$corrRetain = .8 
 
 # n_batches_per_timePoint = n_cases / n_samples_per_batch
@@ -554,6 +575,20 @@ grid.arrange(show_mean(fig1),
 dfcor2 = data.frame(test = names(dfcor), Rsq=unlist(dfcor)^2)
 ggplot( dfcor2, aes(test, Rsq, fill=test)) + geom_bar(stat="identity") + theme_bw() + theme(aspect.ratio=1) + coord_flip()
 
+# get correlations genome-wdie
+dfcor = lapply(1:nrow(simObj$Y_oracle), function(j){
+
+	y_oracle = simObj$Y_oracle[j,]
+
+	data.frame("Observed data" 	= cor(y_oracle,  simObj$Y[j,])^2,
+				"Full model" 	= cor(y_oracle, Y_list[['remove_batch_full_model']][j,])^2,
+				"Simple model" 	= cor(y_oracle, Y_list[['remove_batch_simple']][j,])^2)
+
+	})
+dfcor = do.call(rbind, dfcor)
+
+plotVarPart(dfcor)
+
 ```
 
 
@@ -583,16 +618,16 @@ ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_b
 
 opt = list()
 
-opt$n_cases = 30 # total number of individuals
-opt$n_control = 10 # number of control individuals
-opt$n_controls_per_batch = 10
+opt$n_cases = 50 # total number of individuals
+# opt$n_control = 10 # number of control individuals
+# opt$n_controls_per_batch = 10
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
 opt$p = 500
 opt$n_de = 250 # genes different between case and control
 opt$n_tp = 250 # genes different between time points
-opt$n_samples_per_batch = 4
-opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
+# opt$n_samples_per_batch = 10
+# opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
 opt$corrRetain = .8
 
