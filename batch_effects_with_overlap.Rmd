@@ -667,6 +667,10 @@ resultsAll = lapply( c( 2, 4, 8, 12), function(n_control){
 
 				opt$n_samples_per_batch = n_samples_per_batch
 
+				if( opt$n_samples_per_batch >= opt$n_control ){
+					return(NULL)
+				}
+
 				# Run sim
 				set.seed(1)
 				info = createInfo( opt )
