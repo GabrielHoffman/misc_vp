@@ -350,6 +350,12 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 		idx = which(info$Disease == "Case")
 		form = ~ (1|Batch) + TimePoint + (1|Individual)
 		fitList[['Simple: No controls, no replicates']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
+
+
+		idx = which(info$Disease == "Case")
+		form = ~ Batch + TimePoint + Individual
+		fitList[['Simple: No controls, no replicates']] = eBayes(dream(Y[,idx], form, info[idx,], quiet=TRUE))
+		
 		
 		# form = ~ Batch + TimePoint + (1|Individual)
 		# fitList[['Simple: No controls, no replicates - fixed']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
@@ -468,7 +474,7 @@ plotCorrMatrix( C )
 ```
 
 # VariancePartition results
-```{r variancePartition, fig.width=12}
+```{r variancePartition, fig.width=12, eval=FALSE}
 # fit variancePartition model
 vp = fitExtractVarPartModel( simObj$Y, ~ (1|TimePoint) + (1|Disease) + (1|Batch) + (1|Individual), info)
 fig1 = plotVarPart( vp ) + ggtitle("Observed data")
@@ -528,9 +534,9 @@ ggplot(res, aes(method, AUPR, fill=method)) + geom_bar(stat="identity") + theme_
 
  # rm -fr batch_effects_with_overlap_*
 
-# ```{r}
-# knitr::knit_exit()
-# ```
+```{r}
+knitr::knit_exit()
+```
 
 
 # Iterate through simulations
