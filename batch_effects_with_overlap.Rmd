@@ -520,9 +520,9 @@ ggplot(res, aes(method, AUPR, fill=method)) + geom_bar(stat="identity") + theme_
 
  # rm -fr batch_effects_with_overlap_*
 
-```{r}
-knitr::knit_exit()
-```
+# ```{r}
+# knitr::knit_exit()
+# ```
 
 
 # Iterate through simulations
