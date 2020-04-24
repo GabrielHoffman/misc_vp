@@ -60,6 +60,12 @@ Combine study design with statistical modelling to account for batch effects
 is time point really within batch?are we interested in case control or timepoint comparison?
 
 
+
+incomplete data
+low read depth
+fixed number of experiments
+
+
 ```{r load.packages, echo=FALSE, message=FALSE, results='hide'}
 suppressPackageStartupMessages({
 library(variancePartition)
@@ -419,7 +425,7 @@ opt = list()
 
 opt$n_cases = 40 # total number of individuals
 opt$n_control = 10 # number of control individuals
-opt$n_controls_per_batch = 10
+opt$n_controls_per_batch = 2
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
 opt$p = 400
@@ -574,9 +580,9 @@ opt$n_control = 10 # number of control individuals
 opt$n_controls_per_batch = 10
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 400
-opt$n_de = 200 # genes different between case and control
-opt$n_tp = 200 # genes different between time points
+opt$p = 100
+opt$n_de = 50 # genes different between case and control
+opt$n_tp = 50 # genes different between time points
 opt$n_samples_per_batch = 4
 opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
@@ -612,7 +618,6 @@ resultsAll = lapply( c( 2, 10), function(n_control){
 
 		res = lapply( c(0.01, 0.1,.5), function(alpha){
 			opt$alpha = alpha
-
 
 			message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
 
