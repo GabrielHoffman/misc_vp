@@ -220,8 +220,8 @@ generateSimulations = function( opt, info ){
 
 createInfo = function( opt ){
 
-	n_batches = with(opt, n_cases*n_time_points / (n_samples_per_batch - n_controls_per_batch))
-	n_batches = ceiling(n_batches)
+	n_batches = with(opt, n_total / n_samples_per_batch)
+	opt$n_cases = with(opt, (n_total - n_batches*n_controls_per_batch) / n_time_points )
 
 	# Generate study design
 	info = data.frame(	Individual = rep(paste0("ID", 1:opt$n_cases), opt$n_time_points),
@@ -444,9 +444,10 @@ shifter <- function(x, n = 1) {
 
 opt = list()
 
-opt$n_cases = 40 # total number of individuals
-opt$n_control = 2 # number of control individuals
-opt$n_controls_per_batch = 2
+opt$n_total = 300 # total number of experiments
+opt$n_samples_per_batch = 10 # size of each batch
+opt$n_controls_per_batch = 2 # modify this parameter
+
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
 opt$p = 400
@@ -618,14 +619,14 @@ ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_b
 
 opt = list()
 
-opt$n_cases = 50 # total number of individuals
-# opt$n_control = 10 # number of control individuals
-# opt$n_controls_per_batch = 10
+opt$n_total = 300 # total number of experiments
+# opt$n_samples_per_batch = 10 # size of each batch
+# opt$n_controls_per_batch = 2 # modify this parameter
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 5000
-opt$n_de = 2500 # genes different between case and control
-opt$n_tp = 2500 # genes different between time points
+opt$p = 500
+opt$n_de = 250 # genes different between case and control
+opt$n_tp = 250 # genes different between time points
 # opt$n_samples_per_batch = 10
 # opt$n_batches = opt$n_cases*opt$n_time_points / opt$n_samples_per_batch
 opt$n_batches
@@ -645,62 +646,49 @@ opt$distr_Batch = estimate_beta_parameters( .4, .01)
 opt$deGenes = paste0("gene_", sample.int(opt$p, opt$n_de))
 opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 
+# opt$n_controls_per_batch = 2
+# plotStudyDesign(createInfo( opt ))
+
 
 # loop through simulations
-resultsAll = lapply( c( 2, 4, 8, 12, 20, 30, 40, 50), function(n_control){
-	opt$n_control = n_control
+resultsAll = lapply( c(1:5), function(n_controls_per_batch){
+	opt$n_controls_per_batch = n_controls_per_batch
 
-	res = lapply( n_control, function(n_controls_per_batch){
+	res = lapply( c(0.1), function(alpha){
+		opt$alpha = alpha
 
-		opt$n_controls_per_batch = n_controls_per_batch
+		message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
 
-		if( opt$n_controls_per_batch > opt$n_control ){
-			return(NULL)
-		}
+		res = lapply( c(10), function(n_samples_per_batch){
 
-		res = lapply( c(0.1), function(alpha){
-			opt$alpha = alpha
+			# Run sim
+			set.seed(1)
+			info = createInfo( opt )
+			simObj = generateSimulations( opt, info )
 
-			message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
+			Y_list = evalBatchCorrection( simObj, info )
 
-			res = lapply( c(4, 8, 15, 30, 40, 45), function(n_samples_per_batch){
+			message("\tDE TimePoint")
+			fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.9))
+			resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
+			resTP$test = "TimePoint"
 
-				opt$n_samples_per_batch = n_samples_per_batch
+			# message("\tDE Disease")
+			# fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
+			# resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
+			# resDisease$test = "Disease"
 
-				if( opt$n_controls_per_batch >= opt$n_samples_per_batch){
-					return(NULL)
-				}
-
-				# Run sim
-				set.seed(1)
-				info = createInfo( opt )
-				simObj = generateSimulations( opt, info )
-
-				Y_list = evalBatchCorrection( simObj, info )
-
-				message("\tDE TimePoint")
-				fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.9))
-				resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
-				resTP$test = "TimePoint"
-
-				# message("\tDE Disease")
-				# fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
-				# resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
-				# resDisease$test = "Disease"
-
-				res = resTP
-				# res = rbind(resTP, resDisease)
-				res$n_control = opt$n_control
-				res$n_samples_per_batch = opt$n_samples_per_batch
-				res$n_controls_per_batch = opt$n_controls_per_batch
-				res$alpha = opt$alpha
-				res
-			})
-			do.call('rbind', res)     
+			res = resTP
+			# res = rbind(resTP, resDisease)
+			res$n_control = opt$n_control
+			res$n_samples_per_batch = opt$n_samples_per_batch
+			res$n_controls_per_batch = opt$n_controls_per_batch
+			res$alpha = opt$alpha
+			res
 		})
-		do.call('rbind', res)    
+		do.call('rbind', res)     
 	})
-	do.call('rbind', res)
+	do.call('rbind', res)    
 })
 resultsAll = do.call('rbind', resultsAll)
 
