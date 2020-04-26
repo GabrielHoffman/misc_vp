@@ -614,14 +614,14 @@ ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_b
 
 opt = list()
 
-opt$n_total = 300 # total number of experiments
+opt$n_total = 3000 # total number of experiments
 # opt$n_samples_per_batch = 10 # size of each batch
 # opt$n_controls_per_batch = 2 # modify this parameter
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 500
-opt$n_de = 200 # genes different between case and control
-opt$n_tp = 250 # genes different between time points
+opt$p = 5000
+opt$n_de = 2000 # genes different between case and control
+opt$n_tp = 2500 # genes different between time points
 opt$corrRetain = .8
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
@@ -649,7 +649,7 @@ resultsAll = lapply( c(1,2,3,4,5, 6, 8, 10, 12, 15), function(n_controls_per_bat
 
 		message( opt$n_controls_per_batch, " ", opt$alpha)
 
-		res = lapply( 30, function(n_samples_per_batch){
+		res = lapply( 100, function(n_samples_per_batch){
 			opt$n_samples_per_batch = n_samples_per_batch
 
 			res = NULL
