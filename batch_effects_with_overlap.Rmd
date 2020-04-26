@@ -610,7 +610,7 @@ ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_b
 
 
 # Iterate through simulations
-```{r big.sim}
+```{r big.sim, message=FALSE}
 
 opt = list()
 
