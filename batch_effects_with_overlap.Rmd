@@ -619,9 +619,9 @@ opt$n_total = 300 # total number of experiments
 # opt$n_controls_per_batch = 2 # modify this parameter
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 5000
-opt$n_de = 2500 # genes different between case and control
-opt$n_tp = 2500 # genes different between time points
+opt$p = 15000
+opt$n_de = 5000 # genes different between case and control
+opt$n_tp = 5000 # genes different between time points
 opt$corrRetain = .8
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
@@ -641,40 +641,45 @@ opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 
 
 # loop through simulations
-resultsAll = lapply( c(1:8), function(n_controls_per_batch){
+resultsAll = lapply( c(1:15), function(n_controls_per_batch){
 	opt$n_controls_per_batch = n_controls_per_batch
 
-	res = lapply( c(0.1), function(alpha){
+	res = lapply( c(0.1, .2, .3, .4, .5), function(alpha){
 		opt$alpha = alpha
 
 		message( opt$n_controls_per_batch, " ", opt$alpha)
 
-		res = lapply( c(10), function(n_samples_per_batch){
+		res = lapply( seq(20, 100, by=2), function(n_samples_per_batch){
 			opt$n_samples_per_batch = n_samples_per_batch
 
-			# Run sim
-			set.seed(1)
-			info = createInfo( opt )
-			simObj = generateSimulations( opt, info )
+			res = NULL
+			v =  with(opt, n_total / n_samples_per_batch)
+			if(  v == round(v) ){
 
-			Y_list = evalBatchCorrection( simObj, info )
+				# Run sim
+				set.seed(1)
+				info = createInfo( opt )
+				simObj = generateSimulations( opt, info )
 
-			message("\tDE TimePoint")
-			fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.9))
-			resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
-			resTP$test = "TimePoint"
+				Y_list = evalBatchCorrection( simObj, info )
 
-			# message("\tDE Disease")
-			# fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
-			# resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
-			# resDisease$test = "Disease"
+				message("\tDE TimePoint")
+				fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.9))
+				resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
+				resTP$test = "TimePoint"
 
-			res = resTP
-			# res = rbind(resTP, resDisease)
-			res$n_control = opt$n_control
-			res$n_samples_per_batch = opt$n_samples_per_batch
-			res$n_controls_per_batch = opt$n_controls_per_batch
-			res$alpha = opt$alpha
+				# message("\tDE Disease")
+				# fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
+				# resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
+				# resDisease$test = "Disease"
+
+				res = resTP
+				# res = rbind(resTP, resDisease)
+				res$n_control = opt$n_control
+				res$n_samples_per_batch = opt$n_samples_per_batch
+				res$n_controls_per_batch = opt$n_controls_per_batch
+				res$alpha = opt$alpha
+			}
 			res
 		})
 		do.call('rbind', res)     
@@ -684,6 +689,41 @@ resultsAll = lapply( c(1:8), function(n_controls_per_batch){
 resultsAll = do.call('rbind', resultsAll)
 
 ```
+
+```{r study.design}
+
+opt$alpha = .3
+# loop through simulations
+resStudy = lapply( c(1:8), function(n_controls_per_batch){
+	opt$n_controls_per_batch = n_controls_per_batch
+
+	res = lapply( seq(20, 100, by=2), function(n_samples_per_batch){
+		opt$n_samples_per_batch = n_samples_per_batch
+
+		df = NULL
+		v =  with(opt, n_total / n_samples_per_batch)
+		if(  v == round(v) ){
+
+			# cat( opt$n_controls_per_batch, ' ', opt$n_samples_per_batch, "\n")
+
+			info = createInfo( opt )
+
+			df = data.frame( 	n_controls_per_batch= opt$n_controls_per_batch, 
+								n_samples_per_batch = opt$n_samples_per_batch, 
+								n_cases 			= sum(info$Disease=="Case"))
+		}
+		df
+	})
+	do.call(rbind, res)
+})
+resStudy = do.call(rbind, resStudy)
+
+ggplot(resStudy, aes(n_controls_per_batch, n_cases, color=as.character(n_samples_per_batch))) + geom_line() + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylab("Number of cases") + xlab("Number of controls per batch") + scale_color_discrete("Number of samples\nper batch") + ggtitle("Balancing cases and controls in study design")
+```
+
+
+
+
 
 
 ```{r plot.results, fig.width=15}
