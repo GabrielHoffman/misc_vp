@@ -626,7 +626,7 @@ opt$corrRetain = .8
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
 opt$distr_Disease = estimate_beta_parameters( .3, .01)
-opt$distr_Timepoint = estimate_beta_parameters( .08, .02)
+opt$distr_Timepoint = estimate_beta_parameters( .05, .02)
 opt$distr_Batch = estimate_beta_parameters( .4, .01)
 
 # distribution of batch probabilites
