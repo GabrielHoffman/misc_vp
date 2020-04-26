@@ -704,9 +704,9 @@ df = resultsAll
 aupr.random.TimePoint = unique(df[df$test=="TimePoint", 'AUPR.random'])
 aupr.random.Disease = unique(df[df$test=="Disease", 'AUPR.random'])
 
-pdf("~/www/test.pdf", width=20)
+# pdf("~/www/test.pdf", width=20)
 ggplot(subset(df, test=="TimePoint"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha + n_samples_per_batch, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test TimePoint") 	#+ geom_hline(yintercept=aupr.random.TimePoint, linetype='dashed')
-dev.off()
+# dev.off()
 
 
 
