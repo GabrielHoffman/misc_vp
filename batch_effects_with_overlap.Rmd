@@ -641,7 +641,7 @@ opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 
 
 # loop through simulations
-resultsAll = lapply( c(1:5), function(n_controls_per_batch){
+resultsAll = lapply( c(1:8), function(n_controls_per_batch){
 	opt$n_controls_per_batch = n_controls_per_batch
 
 	res = lapply( c(0.1), function(alpha){
