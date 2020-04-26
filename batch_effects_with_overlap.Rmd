@@ -619,9 +619,9 @@ opt$n_total = 300 # total number of experiments
 # opt$n_controls_per_batch = 2 # modify this parameter
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 500
-opt$n_de = 250 # genes different between case and control
-opt$n_tp = 250 # genes different between time points
+opt$p = 5000
+opt$n_de = 2500 # genes different between case and control
+opt$n_tp = 2500 # genes different between time points
 opt$corrRetain = .8
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
@@ -647,11 +647,11 @@ resultsAll = lapply( c(1:5), function(n_controls_per_batch){
 	res = lapply( c(0.1), function(alpha){
 		opt$alpha = alpha
 
-		message(opt$n_control, " ", opt$n_controls_per_batch, " ", opt$alpha)
+		message( opt$n_controls_per_batch, " ", opt$alpha)
 
 		res = lapply( c(10), function(n_samples_per_batch){
 			opt$n_samples_per_batch = n_samples_per_batch
-			
+
 			# Run sim
 			set.seed(1)
 			info = createInfo( opt )
@@ -695,9 +695,9 @@ df = resultsAll
 aupr.random.TimePoint = unique(df[df$test=="TimePoint", 'AUPR.random'])
 aupr.random.Disease = unique(df[df$test=="Disease", 'AUPR.random'])
 
-# pdf("~/www/test.pdf", width=20)
-ggplot(subset(df, test=="TimePoint"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha + n_samples_per_batch, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test TimePoint") 	#+ geom_hline(yintercept=aupr.random.TimePoint, linetype='dashed')
-# dev.off()
+pdf("~/www/test.pdf", width=20)
+ggplot(subset(df, test=="TimePoint"), aes(n_controls_per_batch, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha + n_samples_per_batch, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test TimePoint") 	#+ geom_hline(yintercept=aupr.random.TimePoint, linetype='dashed')
+dev.off()
 
 
 
