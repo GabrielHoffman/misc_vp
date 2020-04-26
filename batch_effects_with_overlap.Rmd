@@ -619,9 +619,9 @@ opt$n_total = 300 # total number of experiments
 # opt$n_controls_per_batch = 2 # modify this parameter
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 15000
-opt$n_de = 5000 # genes different between case and control
-opt$n_tp = 5000 # genes different between time points
+opt$p = 5000
+opt$n_de = 2500 # genes different between case and control
+opt$n_tp = 2500 # genes different between time points
 opt$corrRetain = .8
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
@@ -649,7 +649,7 @@ resultsAll = lapply( c(1:15), function(n_controls_per_batch){
 
 		message( opt$n_controls_per_batch, " ", opt$alpha)
 
-		res = lapply( seq(20, 100, by=2), function(n_samples_per_batch){
+		res = lapply( 30, function(n_samples_per_batch){
 			opt$n_samples_per_batch = n_samples_per_batch
 
 			res = NULL
@@ -664,7 +664,7 @@ resultsAll = lapply( c(1:15), function(n_controls_per_batch){
 				Y_list = evalBatchCorrection( simObj, info )
 
 				message(opt$n_controls_per_batch, ' ', opt$n_samples_per_batch )
-				
+
 				fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(.9))
 				resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
 				resTP$test = "TimePoint"
