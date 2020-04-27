@@ -329,46 +329,46 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 
 	suppressWarnings({
 	fitList = list()
-	# idx = match(colnames(Y_oracle), info$idx)
-	# form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
-	# 					"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
-	# # form = switch(test, "TimePoint" = ~ Disease + TimePoint,# + (1|Individual),
-	# # 					"Disease" 	= ~ Disease + TimePoint)# + (1|Individual))
-	# fitList[['Oracle']] = dream(Y_oracle, form, info[idx,], quiet=TRUE)
+	idx = match(colnames(Y_oracle), info$idx)
+	form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
+	# form = switch(test, "TimePoint" = ~ Disease + TimePoint,# + (1|Individual),
+	# 					"Disease" 	= ~ Disease + TimePoint)# + (1|Individual))
+	fitList[['Oracle']] = dream(Y_oracle, form, info[idx,], quiet=TRUE)
 
 
-	# form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
-	# 					"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
-	# fitList[['Replicates - joint model']] = dream(Y, form, info, quiet=TRUE)
+	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
+	fitList[['Replicates - joint model']] = dream(Y, form, info, quiet=TRUE)
 
-	# for(v in corrRetain){
-	# 	# add noise just to controls
-	# 	# construct so that cor(Y[j,], Y_noise[j,])^2 = corrRetain
-	# 	Y_noise = Y
-	# 	idx = which(info$Disease == "control")
-	# 	for(j in 1:nrow(Y) ){
-	# 		y = Y_noise[j,idx]
-	# 		Y_noise[j,idx] = y + rnorm(length(y), 0, sd=sqrt(var(y)*(1-v)/v)) 
-	# 	}
-	# 	# j=10
-	# 	# cor(Y[j,idx], Y_noise[j,idx])^2
-	# 	# corrRetain
+	for(v in corrRetain){
+		# add noise just to controls
+		# construct so that cor(Y[j,], Y_noise[j,])^2 = corrRetain
+		Y_noise = Y
+		idx = which(info$Disease == "control")
+		for(j in 1:nrow(Y) ){
+			y = Y_noise[j,idx]
+			Y_noise[j,idx] = y + rnorm(length(y), 0, sd=sqrt(var(y)*(1-v)/v)) 
+		}
+		# j=10
+		# cor(Y[j,idx], Y_noise[j,idx])^2
+		# corrRetain
 
-	# 	key = paste0('Replicates - joint model (R^2=',v, ')')
+		key = paste0('Replicates - joint model (R^2=',v, ')')
 
-	# 	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
-	# 						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
-	# 	fitList[[key]] = dream(Y_noise, form, info, quiet=TRUE)
-	# }
+		form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
+							"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
+		fitList[[key]] = dream(Y_noise, form, info, quiet=TRUE)
+	}
 
-	# form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
-	# 					"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
-	# fitList[['Replicates: Two step']] = dream(Y_list[["remove_batch_full_model"]], form, info, quiet=TRUE)
+	form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
+	fitList[['Replicates: Two step']] = dream(Y_list[["remove_batch_full_model"]], form, info, quiet=TRUE)
 
 	if( test == "TimePoint"){
-		# idx = which(info$Disease == "Case")
-		# form = ~ (1|Batch) + TimePoint + (1|Individual)
-		# fitList[['Simple: No controls, no replicates (random)']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
+		idx = which(info$Disease == "Case")
+		form = ~ (1|Batch) + TimePoint + (1|Individual)
+		fitList[['Simple: No controls, no replicates (random)']] = dream(Y[,idx], form, info[idx,], quiet=TRUE)
 
 		idx = which(info$Disease == "Case")
 		form = ~ Batch + TimePoint + Individual
@@ -614,7 +614,7 @@ ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_b
 
 opt = list()
 
-opt$n_total = 3000 # total number of experiments
+opt$n_total = 3072 # total number of experiments
 # opt$n_samples_per_batch = 10 # size of each batch
 # opt$n_controls_per_batch = 2 # modify this parameter
 opt$n_time_points = 2
@@ -660,7 +660,7 @@ resultsAll = lapply( c(.2), function(alpha){
 	res = lapply( c(1,2,3,4,5, 6, 8, 10, 12, 15), function(n_controls_per_batch){
 		opt$n_controls_per_batch = n_controls_per_batch
 
-		res = lapply( 100, function(n_samples_per_batch){
+		res = lapply( 192, function(n_samples_per_batch){
 			opt$n_samples_per_batch = n_samples_per_batch
 
 			res = NULL
@@ -692,13 +692,13 @@ resultsAll = lapply( c(.2), function(alpha){
 				resTP = evalPerformance( fitListTP, coef='TimePointtime2', positives = opt$tpGenes)
 				resTP$test = "TimePoint"
 
-				# message("\tDE Disease")
-				# fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
-				# resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
-				# resDisease$test = "Disease"
+				message("\tDE Disease")
+				fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
+				resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
+				resDisease$test = "Disease"
 
-				res = resTP
-				# res = rbind(resTP, resDisease)
+				# res = resTP
+				res = rbind(resTP, resDisease)
 				res$n_control = opt$n_control
 				res$n_samples_per_batch = opt$n_samples_per_batch
 				res$n_controls_per_batch = opt$n_controls_per_batch
