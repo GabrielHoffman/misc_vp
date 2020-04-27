@@ -348,34 +348,34 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 
 	}
 
-	# form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
-	# 					"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
-	# fitList[['Replicates - joint model']] = tryCatch({dream(Y, form, info, quiet=TRUE)}, error = function(e) NULL )
+	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
+	fitList[['Replicates - joint model']] = tryCatch({dream(Y, form, info, quiet=TRUE)}, error = function(e) NULL )
 
-	# for(v in corrRetain){
-	# 	# add noise just to controls
-	# 	# construct so that cor(Y[j,], Y_noise[j,])^2 = corrRetain
-	# 	Y_noise = Y
-	# 	idx = which(info$Disease == "control")
-	# 	for(j in 1:nrow(Y) ){
-	# 		y = Y_noise[j,idx]
-	# 		Y_noise[j,idx] = y + rnorm(length(y), 0, sd=sqrt(var(y)*(1-v)/v)) 
-	# 	}
-	# 	# j=10
-	# 	# cor(Y[j,idx], Y_noise[j,idx])^2
-	# 	# corrRetain
+	for(v in corrRetain){
+		# add noise just to controls
+		# construct so that cor(Y[j,], Y_noise[j,])^2 = corrRetain
+		Y_noise = Y
+		idx = which(info$Disease == "control")
+		for(j in 1:nrow(Y) ){
+			y = Y_noise[j,idx]
+			Y_noise[j,idx] = y + rnorm(length(y), 0, sd=sqrt(var(y)*(1-v)/v)) 
+		}
+		# j=10
+		# cor(Y[j,idx], Y_noise[j,idx])^2
+		# corrRetain
 
-	# 	key = paste0('Replicates - joint model (R^2=',v, ')')
+		key = paste0('Replicates - joint model (R^2=',v, ')')
 
-	# 	form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
-	# 						"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
-	# 	fitList[[key]] = tryCatch({dream(Y_noise, form, info, quiet=TRUE)}, error = function(e) NULL )
+		form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
+							"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
+		fitList[[key]] = tryCatch({dream(Y_noise, form, info, quiet=TRUE)}, error = function(e) NULL )
 
-	# }
+	}
 
-	# form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
-	# 					"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
-	# fitList[['Replicates: Two step']] = tryCatch({dream(Y_list[["remove_batch_full_model"]], form, info, quiet=TRUE)}, error = function(e) NULL )
+	form = switch(test, "TimePoint" = ~ (1|Disease) + TimePoint + (1|Individual),
+						"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
+	fitList[['Replicates: Two step']] = tryCatch({dream(Y_list[["remove_batch_full_model"]], form, info, quiet=TRUE)}, error = function(e) NULL )
 
 	if( test == "TimePoint"){
 		idx = which(info$Disease == "Case")
