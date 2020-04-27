@@ -619,9 +619,9 @@ opt$n_total = 3072 # total number of experiments
 # opt$n_controls_per_batch = 2 # modify this parameter
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 15000
-opt$n_de = 5000 # genes different between case and control
-opt$n_tp = 5000 # genes different between time points
+opt$p = 5000
+opt$n_de = 2500 # genes different between case and control
+opt$n_tp = 2500 # genes different between time points
 opt$corrRetain = .8
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
