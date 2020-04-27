@@ -693,12 +693,12 @@ resultsAll = lapply( c(.2), function(alpha){
 				resTP$test = "TimePoint"
 
 				# message("\tDE Disease")
-				fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
-				resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
-				resDisease$test = "Disease"
+				# fitListDisease = evalDifferentialExpression(simObj, info, Y_list, test="Disease", corrRetain=c(.6, .7, .8, .9))
+				# resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
+				# resDisease$test = "Disease"
 
-				# res = resTP
-				res = rbind(resTP, resDisease)
+				res = resTP
+				# res = rbind(resTP, resDisease)
 				res$n_control = opt$n_control
 				res$n_samples_per_batch = opt$n_samples_per_batch
 				res$n_controls_per_batch = opt$n_controls_per_batch
