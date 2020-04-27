@@ -750,7 +750,7 @@ ggplot(resStudy, aes(n_controls_per_batch, n_cases, color=as.character(n_samples
 
 
 
-```{r plot.results, fig.width=15}
+```{r plot.results, fig.width=15, cache=FALSE, fig.height=12}
 
 #   
 df = resultsAll
@@ -769,8 +769,7 @@ ggplot(subset(df, test=="TimePoint"), aes(n_controls_per_batch, AUPR, color=meth
 ggplot(subset(df, test=="TimePoint"), aes(n_control, FPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha + n_samples_per_batch, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test TimePoint") + geom_hline(yintercept=0.05, linetype='dashed') + ylim(0, NA)
 
 
-# ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test Disease") + geom_hline(yintercept=aupr.random.Disease, linetype='dashed')
-
+ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_line(size=2) + facet_wrap(~alpha, nrow=1) + theme_bw() + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Test Disease") + geom_hline(yintercept=aupr.random.Disease, elinetype='dashed')
 
 
 ```
