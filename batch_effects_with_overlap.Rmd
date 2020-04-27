@@ -375,11 +375,11 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 
 		idx = which(info$Disease == "Case")
 		form = ~ Batch + TimePoint + Individual
-		fitList[['Simple: No controls, no replicates (fixed)']] = tryCatch({eBayes(dream(Y[,idx], form, info[idx,], quiet=TRUE))}, error = function(e) NULL )
+		fitList[['Simple: No controls, no replicates (fixed)']] = tryCatch({eBayes(capture.output(dream(Y[,idx], form, info[idx,], quiet=TRUE)))}, error = function(e) NULL )
 		
 		idx = which(info$Disease == "Case")
 		form = ~ TimePoint + Individual
-		fitList[['Naive: No controls, no replicates, ignore batch (fixed)']] = tryCatch({eBayes(dream(Y[,idx], form, info[idx,], quiet=TRUE))}, error = function(e) NULL )
+		fitList[['Naive: No controls, no replicates, ignore batch (fixed)']] = tryCatch({eBayes(capture.output(dream(Y[,idx], form, info[idx,], quiet=TRUE)))}, error = function(e) NULL )
 
 	}else{
 		form = ~ (1|Batch) + (1|TimePoint) + Disease + (1|Individual)
@@ -709,8 +709,11 @@ resultsAll = lapply( c(seq(0.01, 0.05), .1, .2), function(alpha){
 				resDisease = evalPerformance( fitListDisease, coef='Diseasecontrol', positives = opt$deGenes)	
 				resDisease$test = "Disease"
 
-				# res = resTP
-				res = rbind(resTP, resDisease)
+				if( length(resDisease$test) ==1){
+					res = resTP
+				}else{
+					res = rbind(resTP, resDisease)
+				}
 				res$n_control = opt$n_control
 				res$n_samples_per_batch = opt$n_samples_per_batch
 				res$n_controls_per_batch = opt$n_controls_per_batch
