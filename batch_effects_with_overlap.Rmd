@@ -652,8 +652,8 @@ resultsAll = lapply( c(.2), function(alpha){
 	# subset this larger dataset
 	set.seed(1)
 	# opt$n_total = 1200
-	opt$n_controls_per_batch = 20
-	opt$n_samples_per_batch = 300
+	opt$n_controls_per_batch = 192
+	opt$n_samples_per_batch = 192*2
 	infoTotal = createInfo( opt )
 	simObjTotal = generateSimulations( opt, infoTotal )
 
