@@ -659,7 +659,7 @@ opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 
 
 # loop through simulations
-resultsAll = lapply( c(seq(0.01, 0.05, length.out=2)), function(alpha){
+resultsAll = lapply( c(seq(0.01, 0.1, length.out=5)), function(alpha){
 
 	message("Generate large dataset")
 
@@ -674,7 +674,7 @@ resultsAll = lapply( c(seq(0.01, 0.05, length.out=2)), function(alpha){
 	infoTotal = createInfo( opt )
 	simObjTotal = generateSimulations( opt, infoTotal )
 
-	res = lapply( c(0:3), function(n_controls_per_batch){
+	res = lapply( c(0:10), function(n_controls_per_batch){
 		opt$n_controls_per_batch = n_controls_per_batch
 
 		res = lapply( 6, function(n_samples_per_batch){
