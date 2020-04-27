@@ -338,6 +338,15 @@ evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", 
 	# 					"Disease" 	= ~ Disease + TimePoint)# + (1|Individual))
 	fitList[['Oracle']] = tryCatch({dream(Y_oracle, form, info[idx,], quiet=TRUE)}, error = function(e) NULL )
 
+	if( is.null(fitList[['Oracle']]) ){
+		idx = match(colnames(Y_oracle), info$idx)
+		form = switch(test, "TimePoint" = ~ TimePoint + (1|Individual),
+							"Disease" 	= ~ Disease + (1|TimePoint) + (1|Individual))
+		# form = switch(test, "TimePoint" = ~ Disease + TimePoint,# + (1|Individual),
+		# 					"Disease" 	= ~ Disease + TimePoint)# + (1|Individual))
+		fitList[['Oracle']] = tryCatch({dream(Y_oracle, form, info[idx,], quiet=TRUE)}, error = function(e) NULL )
+
+	}
 
 	# form = switch(test, "TimePoint" = ~ (1|Disease) + (1|Batch) + TimePoint + (1|Individual),
 	# 					"Disease" 	= ~ Disease + (1|Batch) + (1|TimePoint) + (1|Individual))
