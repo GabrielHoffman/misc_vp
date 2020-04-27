@@ -610,7 +610,7 @@ ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_b
 
 
 # Iterate through simulations
-```{r big.sim, message=TRUE}
+```{r big.sim, message=FALSE}
 
 opt = list()
 
@@ -644,6 +644,8 @@ opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 # loop through simulations
 resultsAll = lapply( c(.2), function(alpha){
 
+	message("Generate large dataset")
+
 	opt$alpha = alpha
 
 	# In order to ensure the same simulation parameters are used, 
@@ -657,8 +659,6 @@ resultsAll = lapply( c(.2), function(alpha){
 
 	res = lapply( c(1,2,3,4,5, 6, 8, 10, 12, 15), function(n_controls_per_batch){
 		opt$n_controls_per_batch = n_controls_per_batch
-
-		message( opt$n_controls_per_batch, " ", opt$alpha)
 
 		res = lapply( 100, function(n_samples_per_batch){
 			opt$n_samples_per_batch = n_samples_per_batch
