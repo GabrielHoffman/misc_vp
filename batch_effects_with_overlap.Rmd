@@ -667,7 +667,7 @@ resultsAll = lapply( c(seq(0.01, 0.05), .1, .2), function(alpha){
 
 	# In order to ensure the same simulation parameters are used, 
 	# subset this larger dataset
-	set.seed(1)
+	set.seed(1)   
 	# opt$n_total = 1200
 	opt$n_controls_per_batch = 30
 	opt$n_samples_per_batch = 30*2
