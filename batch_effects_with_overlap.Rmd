@@ -684,7 +684,7 @@ resultsAll = lapply( c(.2), function(alpha){
 				info = infoTotal[idx,]
 				simObj = with(simObjTotal, list(Y = Y[,idx], Y_oracle = Y_oracle[,idx]))
 
-				# Y_list = evalBatchCorrection( simObj, info )
+				Y_list = evalBatchCorrection( simObj, info )
 
 				message(opt$n_controls_per_batch, ' ', opt$n_samples_per_batch )
 
