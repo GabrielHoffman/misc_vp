@@ -668,7 +668,7 @@ resultsAll = lapply( c(seq(0.01, 0.05), .1, .2), function(alpha){
 	res = lapply( c(0:5), function(n_controls_per_batch){
 		opt$n_controls_per_batch = n_controls_per_batch
 
-		res = lapply( 192, function(n_samples_per_batch){
+		res = lapply( 30, function(n_samples_per_batch){
 			opt$n_samples_per_batch = n_samples_per_batch
 
 			res = NULL
