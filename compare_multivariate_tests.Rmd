@@ -1,0 +1,144 @@
+---
+title: "Compare tests with multiple responses"
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r format(Sys.time(), '%a %b %d %X %Y')`"
+documentclass: article
+output: 
+  html_document:
+  toc: true
+  smart: false
+---
+
+<!--- 
+# run analysis
+cd /Users/gabrielhoffman/workspace/repos/misc_vp
+rmarkdown::render("compare_multivariate_tests.Rmd", output_dir='./', intermediates_dir='./')
+
+--->
+
+```{r load.knitr, echo=FALSE}
+options(xtable.type="html")
+
+knitr::opts_chunk$set(
+  echo=FALSE,
+  warning=FALSE,
+  message=FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  cache = TRUE,
+  dev = c("png", "pdf"), 
+  fig.width=7, fig.height=7)
+
+options(markdown.HTML.stylesheet = 'css/custom.css')
+```
+
+```{r define.function}
+#' Meta-analysis using Sidak correction
+#'
+#' Meta-analysis using Sidak correction evaluating the minimum 
+#' p-value correcting for the number of tests.
+#'
+#' @param pValues array of p-values 
+#' @param ntests number of tests to correct for.  If missing, just counts number of p-values
+#' @param na.rm: a logical indicating whether missing values should be removed.
+#'
+#' @details
+#' The Sidak method corrects a p-value based on the number of tests performed.  
+#' Given a p-value p and n tests, the Sidak corrected p-value is 1-(1-min(p))^n 
+#'
+#' @examples
+#' p = runif(10)
+#'
+#' # assume independent tests
+#' meta_sidak( p )
+#' 
+#' # assume correlation structure leads to 5.4 "effective tests"
+#' meta_sidak( p )
+#'
+meta_sidak = function(pValues, ntests, na.rm=FALSE){
+
+	if( min(pValues) < 0 || max(pValues) > 1){
+		stop("p-values must be in the range [0,1]")
+	}
+
+	if( missing(ntests) ){
+		# get the number of tests
+		# if na.rm==TRUE, get the number of tests without NA values
+		ntests = ifelse( na.rm, sum(!is.na(pValues)), length(pValues))
+	}
+
+	# return corrected p-value
+	1 - (1 - min(pValues, na.rm=na.rm))^ntests
+}
+```
+
+```{r simulations, echo=TRUE}
+library(mvtnorm)
+library(ggplot2)
+library(PRROC)
+
+n = 100
+p = 20
+m = 1
+# rho = .8
+# Sigma = matrix(rho, p, p)
+# diag(Sigma) = 1
+
+n_tests = 1000
+
+res = lapply( 1:n_tests, function(i){
+	
+	X = matrix(rnorm(n*m), ncol=m)
+
+	isDE = i <= n_tests/2
+
+	if( isDE ){
+		beta = matrix(rnorm(m*p), m, p)
+	}else{
+		beta = matrix(0, m, p)
+	}
+
+	Y = X %*% beta + matrix(rnorm(n*p), n, p)*10
+
+	# Multivariate regression
+	# lm.anova
+	fit = lm(Y ~ X)
+	p.lm_anova = anova(fit)['X', 'Pr(>F)']
+
+	# Model each response separately
+	# Then take min p-value
+	fitList = apply(Y, 2, function(y) lm(y~X))
+	p.separate = sapply(fitList, function(x) anova(x)['X', 'Pr(>F)'])
+
+	# combine p-values with sidak correction
+	p.meta_sidak = meta_sidak( p.separate, meff(cor(Y), method="gao") )
+
+	# Collapse multiple responses with mean
+	y_mean = rowMeans(Y)
+	fit_mean = lm(y_mean ~ X)
+	p.mean = anova(fit_mean)['X', 'Pr(>F)']
+	
+	data.frame(	i 			= i,
+				isDE		= isDE, 
+				p.lm_anova 	= p.lm_anova,
+				# p.separate 	= min(p.separate), 
+				p.meta_sidak = p.meta_sidak,
+				p.mean 		= p.mean )
+})
+res = do.call(rbind, res)
+
+
+df_aupr = lapply( colnames(res)[-c(1:2)], function(method){
+
+	pr = pr.curve( -log10(res[[method]][res$isDE]), -log10(res[[method]][!res$isDE]), curve=TRUE )
+	
+	data.frame(method = method, AUPR = pr$auc.integral)
+})
+df_aupr = do.call(rbind, df_aupr)
+
+ggplot(df_aupr, aes(method, AUPR, fill=method)) + geom_bar(stat="identity") + theme_bw(14) + theme(aspect.ratio=1) + coord_flip() + ggtitle("Performance of methods for multiple responses") + geom_hline(yintercept=0.5, linetype="dashed", color="grey30")
+```
+
+
+
+
