@@ -854,7 +854,7 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=5)), function(alpha){
 				# cpn = c(coexprNorm( Y_list ), coexprNorm( simObj) )
 				# res$coexprNorm = paste(sapply( names(cpn), function(x) paste0(x, ':', cpn[x], ';')), collapse='')
 				# browser()
-				save(list=ls(), file="test.RDATA")
+				save(list=ls(), file="/hpc/users/hoffmg01/work/misc_vp/test.RDATA")
 
 				cpn = c( 	Oracle 				= coexprNorm( simObj[['Y_oracle']] ),
 							'Replicates - joint model' = coexprNorm( Y_list[['remove_batch_full_model']] ),
