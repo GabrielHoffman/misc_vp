@@ -735,6 +735,8 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
 
 				Y_list = evalBatchCorrection( simObj, info )
 
+				browser()
+
 				message(opt$n_controls_per_batch, ' ', opt$n_samples_per_batch )
 
 				fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(0.8, .9))
@@ -830,6 +832,14 @@ ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_l
 
 ```
 
+
+## Coexpression
+In this simulation all genes are statistically independent, so the true correlation matrix is `diag(1,p)`.  Here, I evaluate the estimated correlation matrix and the distance to the true correlation matrix using the [Frobenious norm](https://en.wikipedia.org/wiki/Matrix_norm#Frobenius_norm).
+
+```{r eval.coexprNorm}
+
+
+```
 
 How many shared controls is useful? vs noise add disease?
 
