@@ -666,7 +666,7 @@ exprResid = Y_list[['remove_batch_full_model']]
 df = data.frame(y = t(t(exprResid[i,])), info)
 dfcor[["Full model"]] = cor(y_oracle,df$y)
 fig3 = plotStratify( y ~ Batch, df, main="Full model", sort=FALSE, legend=FALSE)
-
+   
 exprResid = Y_list[['remove_batch_simple']]
 df = data.frame(y = t(t(exprResid[i,])), info)
 dfcor[["Simple model"]] = cor(y_oracle,df$y)
@@ -789,7 +789,7 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
 	# subset this larger dataset
 	set.seed(1)   
 	# opt$n_total = 1200
-	# Use this here, to initialise 
+	# Use this here, just to initialise 
 	opt$n_controls_per_batch = 30
 	opt$n_samples_per_batch = 30*2
 	infoTotal = createInfo( opt )
@@ -945,7 +945,12 @@ In this simulation all genes are statistically independent, so the true correlat
 
 df_coexprNorm = resultsAll[!is.na(resultsAll$coexprNorm),]
 
-ggplot(df_coexprNorm, aes(method, coexprNorm, fill=method)) + geom_bar(stat="identity") + theme_bw(15) + theme(aspect.ratio=1, legend.position="none") + coord_flip()
+# number of genes
+p = opt$p
+# Only count off diagonal distances
+# (norm(diag(1,p), "F")^2 - p)/(p*(p-1))
+
+ggplot(df_coexprNorm, aes(method, (coexprNorm^2 - p)/(p*(p-1)) , fill=method)) + geom_bar(stat="identity") + theme_bw(15) + theme(aspect.ratio=1, legend.position="none") + coord_flip() + ylab("Mean squared error") + ggtitle("Coexpression reconstruction error") #+ facet_wrap()
 
 
 
