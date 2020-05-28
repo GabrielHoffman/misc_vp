@@ -854,13 +854,16 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
 				# Evaluate coexpression norm
 				# cpn = c(coexprNorm( Y_list ), coexprNorm( simObj) )
 				# res$coexprNorm = paste(sapply( names(cpn), function(x) paste0(x, ':', cpn[x], ';')), collapse='')
-				browser()
-				save(list=ls(), file="test.RDATA")
+				# browser()
+				# save(list=ls(), file="test.RDATA")
 
-				res$coexprNorm_remove_batch_full_model = coexprNorm( Y_list[['remove_batch_full_model']] )
-				res$coexprNorm_remove_batch_simple = coexprNorm( Y_list[['remove_batch_simple']] )
-				res$coexprNorm_Y_oracle = coexprNorm( simObj[['Y_oracle']] )
-				res$coexprNorm_Y = coexprNorm( simObj[['Y']] )
+				cpn = c( 	Oracle 				= coexprNorm( simObj[['Y_oracle']] ),
+							'Replicates - joint model' = coexprNorm( Y_list[['remove_batch_full_model']] ),
+							'Simple: No controls, no replicates (random)' = coexprNorm( Y_list[['remove_batch_simple']] ) )
+			
+				h = match(res$method[res$test=="TimePoint"], names(cpn))
+				res$coexprNorm = c(NA)
+				res$coexprNorm[res$test=="TimePoint"][h[!is.na(h)]] = cpn
 			}
 			res
 		})
