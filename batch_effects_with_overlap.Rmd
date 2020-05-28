@@ -451,6 +451,98 @@ evalPerformance = function( fitList, coef, positives){
 shifter <- function(x, n = 1) {
   if (n == 0) x else c(tail(x, -n), head(x, n))
 }
+
+plotStratify = function (formula, data, xlab, ylab, main, sortBy, colorBy, sort = TRUE,
+    text = NULL, text.y = 1, text.size = 5, pts.cex = 1, ylim = NULL,
+    legend = TRUE, x.labels = FALSE){
+    mc <- match.call()
+    m <- match(c("formula", "data"), names(mc), 0L)
+    mf <- mc[c(1L, m)]
+    mf[[1L]] <- as.name("model.frame")
+    mf <- eval(mf, parent.frame())
+    data.st <- data.frame(mf)
+    if (ncol(data.st) != 2) {
+        stop("formula must have exactly 2 entries")
+    }
+    xval = colnames(data.st)[attr(attr(mf, "terms"), "response") +
+        1]
+    yval = colnames(data.st)[attr(attr(mf, "terms"), "response")]
+    if (missing(xlab)) {
+        xlab = xval
+    }
+    if (missing(sortBy) || is.null(sortBy)) {
+        sortBy = xval
+    }
+    if (missing(colorBy)) {
+        colorBy = xval
+    }
+    if (missing(ylab)) {
+        ylab = yval
+    }
+    if (!(sortBy %in% colnames(data.st))) {
+        stop(paste("sortBy is not found in colnames(data): sortBy =",
+            sortBy))
+    }
+    data.st[[yval]] = as.numeric(data.st[[yval]])
+    xpos = 0.5
+    ypos = text.y * (max(data.st[[yval]]) - min(data.st[[yval]])) +
+        min(data.st[[yval]])
+    if (sort) {
+        data.st[["reorder"]] = reorder(data.st[[sortBy]], data.st[[yval]],
+            FUN = median)
+        ord = "reorder"
+    }
+    else {
+        ord = xval
+    }
+    pOut = ggplot(data.st, aes_string(x = ord, y = yval)) + theme_bw() +
+        theme(plot.background = element_blank(), panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(), panel.background = element_blank()) +
+        ylab(ylab) + xlab(xlab) + theme(plot.title = element_text(hjust = 0.5))
+    if (any(is.null(colorBy)) || any(is.na(colorBy))) {
+        pOut = pOut + geom_boxplot(color = "grey", fill = "grey",
+            outlier.colour = "black", outlier.shape = 20)
+    }
+    else {
+        if (sum(levels(data.st[[xval]]) %in% names(colorBy)) ==
+            nlevels(data.st[[xval]])) {
+            i = match(levels(data.st[[ord]]), levels(data.st[[xval]]))
+            pOut = pOut + geom_boxplot(aes_string(fill = xval, middle=mean(yval)),
+                color = colorBy[i], outlier.colour = "black",
+                outlier.shape = 20) + scale_fill_manual(values = array(colorBy))
+        }
+        else {
+            pOut = pOut + geom_boxplot(aes_string(color = colorBy,
+                fill = colorBy), outlier.colour = "black", outlier.shape = 20)
+        }
+        if (legend) {
+            pOut = pOut + theme(legend.justification = c(1, 0),
+                legend.position = c(1, 0), legend.key = element_rect(fill = "transparent"),
+                axis.text.x = element_text(angle = 30), legend.background = element_rect(fill = "transparent"))
+        }
+        else {
+            pOut = pOut + theme(legend.position = "none", axis.text.x = element_text(angle = 30))
+        }
+    }
+    if (!x.labels) {
+        pOut = pOut + theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+    }
+    pOut = pOut + stat_summary(geom = "crossbar", width = 0.65,
+        fatten = 0, color = "black", fun.data = function(x) {
+            return(c(y = median(x), ymin = median(x), ymax = median(x)))
+        })
+    if (!missing(ylim)) {
+        pOut = pOut + ylim(ylim)
+    }
+    if (!missing(main)) {
+        pOut = pOut + ggtitle(main)
+    }
+    if (!missing(text)) {
+        pOut = pOut + annotate("text", label = text, x = xpos,
+            y = ypos, size = text.size, hjust = 0)
+    }
+    return(pOut)
+}
 ```
 
 
@@ -762,6 +854,8 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
 				# Evaluate coexpression norm
 				# cpn = c(coexprNorm( Y_list ), coexprNorm( simObj) )
 				# res$coexprNorm = paste(sapply( names(cpn), function(x) paste0(x, ':', cpn[x], ';')), collapse='')
+				browser()
+				save(list=ls(), file="test.RDATA")
 
 				res$coexprNorm_remove_batch_full_model = coexprNorm( Y_list[['remove_batch_full_model']] )
 				res$coexprNorm_remove_batch_simple = coexprNorm( Y_list[['remove_batch_simple']] )
@@ -843,6 +937,8 @@ ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_l
 In this simulation all genes are statistically independent, so the true correlation matrix is `diag(1,p)`.  Here, I evaluate the estimated correlation matrix and the distance to the true correlation matrix using the [Frobenious norm](https://en.wikipedia.org/wiki/Matrix_norm#Frobenius_norm).
 
 ```{r eval.coexprNorm}
+
+df_coexprNorm = 
 
 
 
