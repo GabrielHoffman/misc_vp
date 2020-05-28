@@ -618,6 +618,29 @@ ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_b
 
 ```
 
+## Compare coexpression
+```{r coexpression}
+library(Matrix)
+
+sapply(Y_list, function(Yhat){
+
+	C = cor(t(Yhat))
+	norm(C, "F")
+	# sum(eigen(C)$values)
+
+	# n = ncol(Yhat)
+	# A = scale(t(Yhat)) / sqrt(n-1)
+	# # meff(eigen=eigen(crossprod(A))$values, method="gao")
+
+	# evs = svd(A)$d^2
+	# sqrt(sum(evs))
+})
+
+```
+
+
+
+
 
  # rm -fr batch_effects_with_overlap_*
 
@@ -636,9 +659,9 @@ opt$n_total = 300#3072 # total number of experiments
 # opt$n_controls_per_batch = 2 # modify this parameter
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
-opt$p = 5000
-opt$n_de = 2500 # genes different between case and control
-opt$n_tp = 2500 # genes different between time points
+opt$p = 500
+opt$n_de = 250 # genes different between case and control
+opt$n_tp = 250 # genes different between time points
 opt$corrRetain = .8
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
@@ -727,6 +750,7 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=5)), function(alpha){
 				res$n_samples_per_batch = opt$n_samples_per_batch
 				res$n_controls_per_batch = opt$n_controls_per_batch
 				res$alpha = opt$alpha
+				browser()
 			}
 			res
 		})
