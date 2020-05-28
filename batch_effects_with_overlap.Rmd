@@ -861,9 +861,11 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
 							'Replicates - joint model' = coexprNorm( Y_list[['remove_batch_full_model']] ),
 							'Simple: No controls, no replicates (random)' = coexprNorm( Y_list[['remove_batch_simple']] ) )
 			
-				h = match(res$method[res$test=="TimePoint"], names(cpn))
+				h = match( names(cpn), res$method[res$test=="TimePoint"])
 				res$coexprNorm = c(NA)
-				res$coexprNorm[res$test=="TimePoint"][h[!is.na(h)]] = cpn
+				res$coexprNorm[res$test=="TimePoint"][h] = cpn
+
+				res
 			}
 			res
 		})
@@ -941,7 +943,9 @@ In this simulation all genes are statistically independent, so the true correlat
 
 ```{r eval.coexprNorm}
 
-df_coexprNorm = 
+df_coexprNorm = resultsAll[!is.na(resultsAll$coexprNorm),]
+
+ggplot(df_coexprNorm, aes(method, coexprNorm, fill=method)) + geom_bar(stat="identity") + theme_bw(15) + theme(aspect.ratio=1, legend.position="none") + coord_flip()
 
 
 
