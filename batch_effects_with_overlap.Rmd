@@ -622,20 +622,23 @@ ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_b
 ```{r coexpression}
 library(Matrix)
 
-coexprNorm = function(Y_list){
-	sapply(Y_list, function(Yhat){
+coexprNorm = function(Yhat){
 
+	if( is.null(Yhat) ){
+		res = NA
+	}else{
 		C = cor(t(Yhat))
-		norm(C, "F")
-		# sum(eigen(C)$values)
+		res = norm(C, "F")
+	}
+	# sum(eigen(C)$values)
 
-		# n = ncol(Yhat)
-		# A = scale(t(Yhat)) / sqrt(n-1)
-		# # meff(eigen=eigen(crossprod(A))$values, method="gao")
+	# n = ncol(Yhat)
+	# A = scale(t(Yhat)) / sqrt(n-1)
+	# # meff(eigen=eigen(crossprod(A))$values, method="gao")
 
-		# evs = svd(A)$d^2
-		# sqrt(sum(evs))
-	})
+	# evs = svd(A)$d^2
+	# sqrt(sum(evs))
+	res
 }
 
 ```
@@ -757,9 +760,13 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
 				res$alpha = opt$alpha
 
 				# Evaluate coexpression norm
-				cpn = c(coexprNorm( Y_list ), coexprNorm( simObj) )
+				# cpn = c(coexprNorm( Y_list ), coexprNorm( simObj) )
+				# res$coexprNorm = paste(sapply( names(cpn), function(x) paste0(x, ':', cpn[x], ';')), collapse='')
 
-				res$coexprNorm = paste(sapply( names(cpn), function(x) paste0(x, ':', cpn[x], ';')), collapse='')
+				res$coexprNorm_remove_batch_full_model = coexprNorm( Y_list[['remove_batch_full_model']] )
+				res$coexprNorm_remove_batch_simple = coexprNorm( Y_list[['remove_batch_simple']] )
+				res$coexprNorm_Y_oracle = coexprNorm( simObj[['Y_oracle']] )
+				res$coexprNorm_Y = coexprNorm( simObj[['Y']] )
 			}
 			res
 		})
@@ -836,6 +843,8 @@ ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_l
 In this simulation all genes are statistically independent, so the true correlation matrix is `diag(1,p)`.  Here, I evaluate the estimated correlation matrix and the distance to the true correlation matrix using the [Frobenious norm](https://en.wikipedia.org/wiki/Matrix_norm#Frobenius_norm).
 
 ```{r eval.coexprNorm}
+
+
 
 
 ```
