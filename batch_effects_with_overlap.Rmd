@@ -622,19 +622,21 @@ ggplot(res, aes(method, FPR, fill=method)) + geom_bar(stat="identity") + theme_b
 ```{r coexpression}
 library(Matrix)
 
-sapply(Y_list, function(Yhat){
+coexprNorm = function(Y_list){
+	sapply(Y_list, function(Yhat){
 
-	C = cor(t(Yhat))
-	norm(C, "F")
-	# sum(eigen(C)$values)
+		C = cor(t(Yhat))
+		norm(C, "F")
+		# sum(eigen(C)$values)
 
-	# n = ncol(Yhat)
-	# A = scale(t(Yhat)) / sqrt(n-1)
-	# # meff(eigen=eigen(crossprod(A))$values, method="gao")
+		# n = ncol(Yhat)
+		# A = scale(t(Yhat)) / sqrt(n-1)
+		# # meff(eigen=eigen(crossprod(A))$values, method="gao")
 
-	# evs = svd(A)$d^2
-	# sqrt(sum(evs))
-})
+		# evs = svd(A)$d^2
+		# sqrt(sum(evs))
+	})
+}
 
 ```
 
@@ -750,6 +752,7 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=5)), function(alpha){
 				res$n_samples_per_batch = opt$n_samples_per_batch
 				res$n_controls_per_batch = opt$n_controls_per_batch
 				res$alpha = opt$alpha
+				a = coexprNorm( Y_list )
 				browser()
 			}
 			res
