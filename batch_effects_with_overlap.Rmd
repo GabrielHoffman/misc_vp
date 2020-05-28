@@ -735,8 +735,6 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
 
 				Y_list = evalBatchCorrection( simObj, info )
 
-				browser()
-
 				message(opt$n_controls_per_batch, ' ', opt$n_samples_per_batch )
 
 				fitListTP = evalDifferentialExpression(simObj, info, Y_list, test="TimePoint", corrRetain=c(0.8, .9))
@@ -759,8 +757,9 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
 				res$alpha = opt$alpha
 
 				# Evaluate coexpression norm
-				cpn = coexprNorm( Y_list )
-				res$coexprNorm = sapply( names(cpn), function(x) paste0(x, ':', cpn[x], ';'))[1]
+				cpn = c(coexprNorm( Y_list ), coexprNorm( simObj) )
+
+				res$coexprNorm = paste(sapply( names(cpn), function(x) paste0(x, ':', cpn[x], ';')), collapse='')
 			}
 			res
 		})
