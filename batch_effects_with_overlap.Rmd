@@ -949,8 +949,7 @@ p = opt$p
 # Only count off diagonal distances
 # (norm(diag(1,p), "F")^2 - p)/(p*(p-1))
 
-ggplot(df_coexprNorm, aes(method, (coexprNorm^2 - p)/(p*(p-1)) , fill=method)) + geom_bar(stat="identity") + theme_bw(15) + theme(aspect.ratio=1, legend.position="none") + coord_flip() + ylab("Mean squared error") + ggtitle("Coexpression error") #+ facet_wrap()
-
+ggplot(df_coexprNorm, aes(n_control, (coexprNorm^2 - p)/(p*(p-1)), color=method)) + geom_line() + theme_bw(15) + theme(aspect.ratio=1, legend.position="bottom", plot.title = element_text(hjust = 0.5)) + ylab("Mean squared error") + ggtitle("Coexpression reconstruction error") + facet_wrap(~alpha, nrow=1)
 ```
 
 How many shared controls is useful? vs noise add disease?
