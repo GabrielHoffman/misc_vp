@@ -779,7 +779,7 @@ opt$tpGenes = paste0("gene_", sample.int(opt$p, opt$n_tp))
 
 
 # loop through simulations
-resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
+resultsAll = lapply( c(seq(0.01, 0.1, length.out=5)), function(alpha){
 
 	message("Generate large dataset")
 
@@ -795,8 +795,7 @@ resultsAll = lapply( c(seq(0.01, 0.1, length.out=1)), function(alpha){
 	infoTotal = createInfo( opt )
 	simObjTotal = generateSimulations( opt, infoTotal )
 
-	# res = lapply( c(0:5), function(n_controls_per_batch){
-	res = lapply( c(3), function(n_controls_per_batch){
+	res = lapply( c(0:5), function(n_controls_per_batch){
 
 		opt$n_controls_per_batch = n_controls_per_batch
 
@@ -950,10 +949,7 @@ p = opt$p
 # Only count off diagonal distances
 # (norm(diag(1,p), "F")^2 - p)/(p*(p-1))
 
-ggplot(df_coexprNorm, aes(method, (coexprNorm^2 - p)/(p*(p-1)) , fill=method)) + geom_bar(stat="identity") + theme_bw(15) + theme(aspect.ratio=1, legend.position="none") + coord_flip() + ylab("Mean squared error") + ggtitle("Coexpression reconstruction error") #+ facet_wrap()
-
-
-
+ggplot(df_coexprNorm, aes(method, (coexprNorm^2 - p)/(p*(p-1)) , fill=method)) + geom_bar(stat="identity") + theme_bw(15) + theme(aspect.ratio=1, legend.position="none") + coord_flip() + ylab("Mean squared error") + ggtitle("Coexpression error") #+ facet_wrap()
 
 ```
 
