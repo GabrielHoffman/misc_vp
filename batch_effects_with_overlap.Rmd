@@ -940,7 +940,7 @@ ggplot(subset(df, test=="Disease"), aes(n_control, AUPR, color=method)) + geom_l
 ## Coexpression
 In this simulation all genes are statistically independent, so the true correlation matrix is `diag(1,p)`.  Here, I evaluate the estimated correlation matrix and the distance to the true correlation matrix using the [Frobenious norm](https://en.wikipedia.org/wiki/Matrix_norm#Frobenius_norm).
 
-```{r eval.coexprNorm, fig.height=4}
+```{r eval.coexprNorm, fig.height=4, cache=FALSE}
 
 df_coexprNorm = resultsAll[!is.na(resultsAll$coexprNorm),]
 
