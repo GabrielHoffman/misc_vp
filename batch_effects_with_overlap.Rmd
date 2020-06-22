@@ -309,7 +309,9 @@ evalBatchCorrection = function( simObj, info ){
 	Y_list[["remove_batch_full_model"]] = tryCatch({
 		# This gave a strange error in multithreaded mode
 		fitList = fitVarPartModel( Y, ~ (1|Batch) + (1|TimePoint) + (1|Disease) + (1|Individual), info, fxn = function(fit){ 
-				B = predict(fit, info[,c("Batch"),drop=FALSE], re.form=~(1|Batch))
+				# predict only batch effect
+				B = predict(fit, info, re.form=~(1|Batch))
+
 				fit@resp$y - B
 			}, showWarnings=FALSE, BPPARAM=SerialParam(), quiet=TRUE)
 
@@ -322,6 +324,79 @@ evalBatchCorrection = function( simObj, info ){
 
 	Y_list
 }
+
+
+info$X = Y[1,] + rnorm(nrow(info))
+
+fitList = fitVarPartModel( Y, ~ (1|Batch) + (X|Disease:Batch) + (1|Individual) + X, info, BPPARAM=SerialParam(), showWarnings=FALSE)
+
+fit = fitList[[1]]
+
+pred_batch = predict(fit, info, re.form=~(1|Batch), random.only=TRUE)
+pred_fixed = predict(fit, info, re.form=NA, random.only=TRUE)
+
+
+ranef(fit)$Batch
+info$pred = predict(fit, info, re.form=~(1|Batch), random.only=TRUE)
+
+
+df = merge(info, ranef(fit)$Batch, by.x="Batch", by.y="row.names")
+with(df, plot(pred, `(Intercept)`, xlab="predict", ylab="ranef"))
+
+
+
+form_remove = ~ 0+(1|Batch) + (X|Disease:Batch) + (1|Individual)  + X 
+
+
+
+get_effects = function( fit, form_remove){
+
+	# # extract random effect terms
+	# ranefList = lme4::findbars(form_remove)
+
+	# # random effects terms in an array
+	# ranefTerms = sapply(ranefList, function(x) as.character(x)[length(x)])
+
+	# # RANDOM
+	# #-------
+	# lapply(ranefTerms, function(form){
+	# 	ranef(fit)[form]
+	# 	})
+
+	#  lapply(getME(fit, "mmList"), head)
+
+
+	# RANDOM
+	#-------
+
+	ran_form = lme4:::reOnly(form_remove)
+
+	pred_rand = lme4::predict(fit, info, re.form=ran_form, random.only=TRUE)
+
+	# FIXED 
+	#------
+
+	# formula of only fixed effects
+	fixed_form = lme4::nobars(form_remove)
+
+	# create design matrix from formula
+	dsgn =  getME(fit, "X")
+
+	# only extract coefficients matching design 
+	beta = fixef(fit)[colnames(dsgn)]
+
+	# prediction of fixed effects
+	pred_fixed = dsgn %*% beta
+
+
+	# combine
+	pred_rand + pred_fixed
+}
+
+
+
+
+
 
 
 evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", corrRetain=.9){
@@ -696,6 +771,9 @@ plotVarPart(dfcor)
 
 ```
 
+```{r}
+knitr:::knit_exit()
+```
 
 # Performance for single simulation
 ```{r differential.expression}
