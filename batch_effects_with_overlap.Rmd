@@ -300,8 +300,76 @@ plotStudyDesign = function(info){
 }
 
 
+
+#' Compute predicted value of formula for linear mixed model
+#'
+#' Compute predicted value of formula for linear mixed model for with lmer
+#'
+#' @param fit model fit with lmer
+#' @param formula formula of fixed and random effects to predict
+#'
+#' @return Predicted values from formula using parameter estimates from fit linear mixed model
+#'
+#' @details Similar motivation as \code{lme4:::predict.merMod()}, but that function cannot use just a subset of the fixed effects: it either uses none or all.  Note that the intercept is included in the formula by default.  To exclude it from the prediction use \code{~ 0 + ...} syntax
+#' 
+#' @examples
+#' 
+#' # fit model
+#' fm1 <- lmer(Reaction ~ Days + (Days | Subject), sleepstudy)
+#' 
+#' # predict Days, but exclude intercept
+#' get_prediction( fm1, ~ 0 + Days)
+#' 
+#' # predict Days and (Days | Subject) random effect, but exclude intercept
+#' get_prediction( fm1, ~ 0 + Days +  (Days | Subject))
+#' 
+#' @import lme4
+get_prediction = function( fit, formula){
+
+	library(lme4)
+
+	# initialize to zeros
+	pred_fixed = pred_rand = rep(0, length(fit@resp$y))
+
+	# if a random effect is specified
+	if( !is.null(lme4:::findbars(formula)) ){
+		# RANDOM
+		#-------
+		# Get sum of BLUP's for the specified random effects
+
+		ran_form = lme4:::reOnly(formula)
+
+		pred_rand = predict(fit, re.form=ran_form, random.only=TRUE)
+	}
+
+	# FIXED 
+	#------
+	# Compute X\beta for the specified set of fixed effects
+
+	# formula of only fixed effects
+	fixed_form = lme4::nobars(formula)
+
+	# create design matrix from formula
+	# dsgn = lme4::getME(fit, "X")
+	dsgn = model.matrix( fixed_form, fit@frame)
+
+	# only extract coefficients matching design 
+	beta = lme4::fixef(fit)[colnames(dsgn)]
+
+	if( length(beta) > 0){		
+		# prediction of fixed effects
+		pred_fixed = dsgn %*% beta
+	}
+
+	# combine
+	pred_rand + pred_fixed
+}
+
+
 evalBatchCorrection = function( simObj, info ){
 	
+	library(data.table)
+
 	Y = simObj$Y
 
 	Y_list = list()
@@ -310,9 +378,8 @@ evalBatchCorrection = function( simObj, info ){
 		# This gave a strange error in multithreaded mode
 		fitList = fitVarPartModel( Y, ~ (1|Batch) + (1|TimePoint) + (1|Disease) + (1|Individual), info, fxn = function(fit){ 
 				# predict only batch effect
-				B = predict(fit, info, re.form=~(1|Batch))
-
-				fit@resp$y - B
+				pred = get_prediction( fit, ~ 0 + (1|Batch))
+				fit@resp$y - pred
 			}, showWarnings=FALSE, BPPARAM=SerialParam(), quiet=TRUE)
 
 		Y_corrected = do.call(rbind, fitList)
@@ -320,83 +387,41 @@ evalBatchCorrection = function( simObj, info ){
 		 Y_corrected
 	}, error = function(e) NULL )
 
+	# collapse repeated measures if they are biologically equivalent
+	Y_list[["collapse"]] = tryCatch({
+		fitList = fitVarPartModel( Y, ~ (1|Batch) + (1|TimePoint) + (1|Disease) + (1|Individual), info, fxn = function(fit){ 
+
+				# subtract batch effect
+				pred = get_prediction( fit, ~ 0 + (1|Batch))
+				y_pred = fit@resp$y - pred
+
+				# get predictions for each individual, both cases and controls
+				if( '(weights)' %in% colnames(fit@frame) ){
+					w = fit@frame[,'(weights)']
+				}else{
+					w = NULL
+				}
+				# use lm to mean for each individual
+				fit2 = lm(fit@resp$y - pred ~ 0 + Individual, fit@frame, weights=w )
+				df = data.frame(info, value = predict(fit2), stringsAsFactors=FALSE)
+
+				# for controls, replace initial predictions with collapsed predictions
+				df2 = df[df$Disease=="control",]
+				y_pred[rownames(df2)] = df2$value
+
+				y_pred
+
+			}, showWarnings=FALSE, BPPARAM=SerialParam(), quiet=TRUE)
+
+		Y_corrected = do.call(rbind, fitList)
+		rownames(Y_corrected) = rownames(Y)
+		Y_corrected
+	}, error = function(e) NULL )
+
 	Y_list[["remove_batch_simple"]] = removeBatchEffect(Y, info$Batch, design=model.matrix(~TimePoint, info))
 
 	Y_list
 }
-
-
-info$X = Y[1,] + rnorm(nrow(info))
-
-fitList = fitVarPartModel( Y, ~ (1|Batch) + (X|Disease:Batch) + (1|Individual) + X, info, BPPARAM=SerialParam(), showWarnings=FALSE)
-
-fit = fitList[[1]]
-
-pred_batch = predict(fit, info, re.form=~(1|Batch), random.only=TRUE)
-pred_fixed = predict(fit, info, re.form=NA, random.only=TRUE)
-
-
-ranef(fit)$Batch
-info$pred = predict(fit, info, re.form=~(1|Batch), random.only=TRUE)
-
-
-df = merge(info, ranef(fit)$Batch, by.x="Batch", by.y="row.names")
-with(df, plot(pred, `(Intercept)`, xlab="predict", ylab="ranef"))
-
-
-
-form_remove = ~ 0+(1|Batch) + (X|Disease:Batch) + (1|Individual)  + X 
-
-
-
-get_effects = function( fit, form_remove){
-
-	# # extract random effect terms
-	# ranefList = lme4::findbars(form_remove)
-
-	# # random effects terms in an array
-	# ranefTerms = sapply(ranefList, function(x) as.character(x)[length(x)])
-
-	# # RANDOM
-	# #-------
-	# lapply(ranefTerms, function(form){
-	# 	ranef(fit)[form]
-	# 	})
-
-	#  lapply(getME(fit, "mmList"), head)
-
-
-	# RANDOM
-	#-------
-
-	ran_form = lme4:::reOnly(form_remove)
-
-	pred_rand = lme4::predict(fit, info, re.form=ran_form, random.only=TRUE)
-
-	# FIXED 
-	#------
-
-	# formula of only fixed effects
-	fixed_form = lme4::nobars(form_remove)
-
-	# create design matrix from formula
-	dsgn =  getME(fit, "X")
-
-	# only extract coefficients matching design 
-	beta = fixef(fit)[colnames(dsgn)]
-
-	# prediction of fixed effects
-	pred_fixed = dsgn %*% beta
-
-
-	# combine
-	pred_rand + pred_fixed
-}
-
-
-
-
-
 
 
 evalDifferentialExpression = function(simObj, info, Y_list, test = "TimePoint", corrRetain=.9){
@@ -627,7 +652,9 @@ opt = list()
 
 opt$n_total = 300 # total number of experiments
 opt$n_samples_per_batch = 10 # size of each batch
-opt$n_controls_per_batch = 2 # modify this parameter
+opt$n_controls_per_batch = 5 # modify this parameter
+with(opt, n_total / (n_samples_per_batch*n_controls_per_batch))
+
 
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
@@ -687,7 +714,7 @@ grid.arrange(fig1, fig2, ncol=2)
 Green points are controls.  Red is case - time point 1, black is case - time point 2.
 ```{r pca, fig.width=8, fig.height=8}
 # Plot coloring by individual
-par(mfrow=c(2,2), pty='s')
+par(mfrow=c(3,2), pty='s')
 # PCA of data with no batch effect
 dcmp = prcomp( t(simObj$Y_oracle), scale=TRUE)
 pct = format(dcmp$sdev[1:2]^2 / sum(dcmp$sdev^2)*100, digits=3)
@@ -714,6 +741,12 @@ plot(dcmp$x[,1:2], col=info$Status, pch=as.integer(info$Disease)+6,
 	xlab = paste0('PC1 (', pct[1], '%)'), ylab = paste0('PC2 (', pct[1], '%)'),
 	main="Simple batch correction")
 
+
+dcmp = prcomp( t(Y_list[["collapse"]]), scale=TRUE)
+pct = format(dcmp$sdev[1:2]^2 / sum(dcmp$sdev^2)*100, digits=3)
+plot(dcmp$x[,1:2],  col=info$Status, pch=as.integer(info$Disease)+6, 
+	xlab = paste0('PC1 (', pct[1], '%)'), ylab = paste0('PC2 (', pct[1], '%)'),
+	main="Collapse controls")
 ```
 
 # Gene expression after correction
@@ -771,7 +804,7 @@ plotVarPart(dfcor)
 
 ```
 
-```{r}
+```{r, cache=FALSE}
 knitr:::knit_exit()
 ```
 
