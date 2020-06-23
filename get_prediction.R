@@ -59,9 +59,11 @@ get_prediction = function( fit, formula){
 
 	if( length(beta) > 0){		
 		# prediction of fixed effects
-		pred_fixed = dsgn %*% beta
+		pred_fixed = as.numeric(dsgn %*% beta)
 	}
 
 	# combine
-	pred_rand + pred_fixed
+	y_pred = pred_rand + pred_fixed
+	names(y_pred) = rownames(dsgn)
+	y_pred
 }

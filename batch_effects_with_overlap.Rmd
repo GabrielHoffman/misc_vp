@@ -358,11 +358,13 @@ get_prediction = function( fit, formula){
 
 	if( length(beta) > 0){		
 		# prediction of fixed effects
-		pred_fixed = dsgn %*% beta
+		pred_fixed = as.numeric(dsgn %*% beta)
 	}
 
 	# combine
-	pred_rand + pred_fixed
+	y_pred = pred_rand + pred_fixed
+	names(y_pred) = rownames(dsgn)
+	y_pred
 }
 
 
@@ -382,9 +384,7 @@ evalBatchCorrection = function( simObj, info ){
 				fit@resp$y - pred
 			}, showWarnings=FALSE, BPPARAM=SerialParam(), quiet=TRUE)
 
-		Y_corrected = do.call(rbind, fitList)
-		rownames(Y_corrected) = rownames(Y)
-		 Y_corrected
+		do.call(rbind, fitList)
 	}, error = function(e) NULL )
 
 	# collapse repeated measures if they are biologically equivalent
@@ -410,12 +410,9 @@ evalBatchCorrection = function( simObj, info ){
 				y_pred[rownames(df2)] = df2$value
 
 				y_pred
-
 			}, showWarnings=FALSE, BPPARAM=SerialParam(), quiet=TRUE)
 
-		Y_corrected = do.call(rbind, fitList)
-		rownames(Y_corrected) = rownames(Y)
-		Y_corrected
+		do.call(rbind, fitList)
 	}, error = function(e) NULL )
 
 	Y_list[["remove_batch_simple"]] = removeBatchEffect(Y, info$Batch, design=model.matrix(~TimePoint, info))
@@ -659,8 +656,8 @@ with(opt, n_total / (n_samples_per_batch*n_controls_per_batch))
 opt$n_time_points = 2
 # total number of experiments: N*n_time_points
 opt$p = 400
-opt$n_de = 100 # genes different between case and control
-opt$n_tp = 100 # genes different between time points
+opt$n_de = 0 # genes different between case and control
+opt$n_tp = 0 # genes different between time points
 opt$corrRetain = .8 
 
 opt$distr_ID = estimate_beta_parameters( .3, .01)
