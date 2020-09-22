@@ -12,6 +12,8 @@
 #
 # Proposed by
 # McKelvey and Zavoina. A statistical model for the analysis of ordinal level dependent variables. The Journal of Mathematical Sociology 4(1) 103-120 https://doi.org/10.1080/0022250X.1975.9989847
+#
+# Nagelkerke's pseudo R^2 evaluates the variance explained by the full model.  Instead, a variance partitioning approach evaluates the variance explained by each term in the model, so that the sum of each systematic plus random term sums to 1 (Hoffman and Schadt, 2016, Nakagawa and Schielzeth, 2012).
 
 # Also see
 # DeMaris. Explained Variance in Logistic Regression: A Monte Carlo Study of Proposed Measures. Sociological Methods & Research 2002 https://doi.org/10.1177/0049124102031001002
@@ -51,6 +53,8 @@ function(fit, adjust=NULL, adjustAll=FALSE, showWarnings=TRUE, ...){
 
 	return( varFrac_linear )
 })
+
+
 
 
 
