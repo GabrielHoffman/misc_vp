@@ -16,6 +16,7 @@
 # Also see
 # DeMaris. Explained Variance in Logistic Regression: A Monte Carlo Study of Proposed Measures. Sociological Methods & Research 2002 https://doi.org/10.1177/0049124102031001002
 
+# Nakagawa and Schielzeth. 2012. A general and simple method for obtaining R2fromgeneralized linear mixed-effects models
 
 #' @export
 #' @rdname calcVarPart-method
