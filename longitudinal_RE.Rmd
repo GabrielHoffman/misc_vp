@@ -1,0 +1,259 @@
+
+---
+title: "Random effects for longitudinal data"
+subtitle: ""
+author:
+- name: "[Gabriel Hoffman](http://gabrielhoffman.github.io)"
+  affiliation: | 
+    Icahn School of Medicine at Mount Sinai, New York
+date: "Run on `r Sys.time()`"
+documentclass: article
+output:
+  html_document:
+    toc: false
+    toc_float: false
+---
+
+
+
+
+<!---
+
+cd /Users/gabrielhoffman/workspace/repos/misc_vp
+
+
+rmarkdown::render("longitudinal_RE.Rmd")
+
+
+
+
+--->
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning=FALSE,
+  message=FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  dev = c('png', 'pdf'),
+  cache = FALSE)
+```
+
+
+```{r data}
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+library(lme4)
+library(variancePartition)
+library(knitr)
+
+n_subjects = 400
+n_samples = 3
+
+df_full = data.frame(Subject = as.character(sort(rep(1:n_subjects, n_samples))),
+				Time = rep(1:n_samples, n_subjects),
+				Severity = runif(n_subjects*n_samples, 0, 10))
+
+beta = 0
+gamma = .5
+sig_subj = .3
+sig_sub_sever = .2
+sig_noise = 0.01
+
+X_Sub_Sev = apply(model.matrix(~0+Subject, df_full), 2, function(x) x * df_full$Severity)
+
+df_full$y = model.matrix(~0+Time, df_full) %*% beta +
+			model.matrix(~0+Severity, df_full) %*% gamma +
+			model.matrix(~0+Subject, df_full) %*% rnorm(n_subjects,0, sig_subj) + 
+			X_Sub_Sev %*% rnorm(n_subjects,0, sig_sub_sever) + 
+			rnorm(n_subjects*n_samples,0, sig_noise)
+
+# idx = sample.int( nrow(df_full), 70, replace=FALSE)
+idx = 1:nrow(df_full)
+df = df_full[idx,]
+
+# Plot data
+ggplot(df_full, aes(Severity, y, color=Subject, shape=as.character(Time))) + geom_point(size=2) + theme_bw() + theme(aspect.ratio=1)
+```
+
+```{r}
+fit = lmer(y ~ Severity + (1+Severity|Subject) + Time, df_full)
+vp = calcVarPart(fit)
+
+plotPercentBars(data.frame(t(vp))) + theme(aspect.ratio=.1)
+```
+
+# Fit models with increasing levels of complexity
+
+Fit a linear model with a single global slope and ignore related measures.  We can see by eye from the plot that the global slope should be one.  And of course that is what we can from this simple model. But it is too simple.  
+```{r}
+fit = lm(y ~ Severity, df)
+coef(summary(fit))
+```
+
+```{r echo=FALSE}
+res = data.frame(Method = "Linear", t(coef(summary(fit))['Severity',]))
+```
+
+Here fit a linear model but model repeated mesures by including Subject as a fixed effect.  Since this data is simple, a fixed effect will get you most of the way there.  After removing cross-subject variation, we are testing within-subject variation.  The within-subject slope is 0.225.
+```{r}
+fit = lm(y ~ Severity + Subject, df)
+head(coef(summary(fit)))
+```
+
+
+```{r echo=FALSE}
+res = rbind(res, data.frame(Method = "Linear + Subject", t(coef(summary(fit))['Severity',])))
+```
+
+
+```{r}
+fit = lmer(y ~ Severity + (1|Subject), df)
+summary(fit)
+sum(hatvalues(fit))
+```
+
+
+```{r echo=FALSE}
+tmp = coef(summary(fit))['Severity',][-3]
+names(tmp)[-1] = c('Std..Error', 't.value', 'Pr...t..') 
+res = rbind(res, data.frame(Method = "lmer: (1|Subject)", t(tmp)))
+```
+
+```{r, eval=TRUE}
+fit = lmer(y ~ Severity + (1+Severity|Subject), df)
+summary(fit)
+sum(hatvalues(fit))
+
+```
+
+```{r echo=FALSE, eval=TRUE }
+tmp = coef(summary(fit))['Severity',][-3]
+names(tmp)[-1] = c('Std..Error', 't.value', 'Pr...t..') 
+res = rbind(res, data.frame(Method = "lmer:  (1+Severity|Subject)", t(tmp)))
+```
+
+```{r}
+fit = lmer(y ~ Severity + (0+Severity|Subject), df)
+summary(fit)
+sum(hatvalues(fit))
+
+# ranef(fit)
+```
+
+
+
+
+
+```{r echo=FALSE}
+tmp = coef(summary(fit))['Severity',][-3]
+names(tmp)[-1] = c('Std..Error', 't.value', 'Pr...t..') 
+res = rbind(res, data.frame(Method = "lmer:  (0+Severity|Subject)", t(tmp)))
+```
+
+
+```{r xtable, results="asis"}
+colnames(res) = c("Model", "Estimate", "se", "t", "P")
+res$P = as.character(format(res$P, digits=2))
+kable(res, digits=3) 
+```
+
+
+
+```{r}
+# get residuals for each Subject
+fit = lm(y ~ Severity + Subject, df)
+df$resid = residuals(fit) + get_prediction(fit, ~ Severity)
+
+ggplot(df, aes(Severity, resid, color=Subject)) + geom_point() + theme_bw() + theme(aspect.ratio=1)
+
+lm(resid ~ Severity, df)
+```
+
+
+
+
+
+
+
+```{r sims, cache=TRUE}
+
+beta = 0
+gamma = 0     
+ 
+resSims = mclapply( 1:500, function(i){
+	
+	df_full$y = model.matrix(~0+Time, df_full) %*% beta +
+				model.matrix(~0+Severity, df_full) %*% gamma +
+				model.matrix(~0+Subject, df_full) %*% rnorm(n_subjects,0, sig_subj) + 
+				X_Sub_Sev %*% rnorm(n_subjects,0, sig_sub_sever) + 
+				rnorm(n_subjects*n_samples,0, sig_noise)
+
+	df = df_full[idx,]
+
+	fit1 = lm(y ~ Severity + Subject, df)
+	p1 = coef(summary(fit1))['Severity','Pr(>|t|)']
+
+	fit2 = lmer(y ~ Severity + (1|Subject), df)
+	p2 = coef(summary(fit2))['Severity','Pr(>|t|)']
+
+	fit3 = lmer(y ~ Severity + (1+Severity|Subject), df)
+	p3 = coef(summary(fit3))['Severity','Pr(>|t|)']
+
+	fit4 = lmer(y ~ Severity + (0+Severity|Subject), df)
+	p4 = coef(summary(fit4))['Severity','Pr(>|t|)']
+
+	data.frame("Linear + Subject" 	= p1,
+		'lmer: (1|Subject)'			= p2,
+		'lmer: (1+Severity|Subject)'= p3,
+		'lmer: (0+Severity|Subject)'= p4,
+		check.names=FALSE)
+}, mc.cores=6)
+
+resSims = do.call(rbind, resSims)
+
+apply(resSims, 2, function(x) sum(x < 0.05) / length(x))
+
+
+
+df_sim = reshape2::melt(resSims)
+
+ggplot(df_sim, aes(value)) + geom_histogram() + facet_wrap(~variable) + theme_bw() + theme(aspect.ratio=1)
+
+
+```
+
+
+Formula `~ Severity + (1|Subject)` uses a subject-specific baseline, and assumes that the effect of Severity on gene expression is the same for each Subject.  This controls the false positive rate when the assuption is satisifed, but not when there are Subject-specific severity effects.
+
+ We can relax this last assuption by using `~ Severity + (1+Severity|Subject)` which decomposes the Severity effect into two components: 1) The global effect of Severity that is shared across subjects and, 2) a "random-slope" term where each Subject get its own Severity coefficient, and a normal prior is placed over these values.  Fitting this model with both components allows you to estimate the 'shared effect' of severity.  This controls the false positive rate even when each Subject has its own severity effect.  
+
+However, this model has a lot of parameters and requires almost complete observations.  With only a smaller set, we can't fit this model.  We can get close, but with lower power, using the model: `~ Severity + (0+Severity|Subject)`, even on incomplete data.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
