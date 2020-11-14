@@ -92,6 +92,7 @@ plotPercentBars(data.frame(t(vp))) + theme(aspect.ratio=.1)
 ```
 
 ```{r, fig.width=12}
+# inspired by https://psych252.github.io/psych252book/linear-mixed-effects-models-2.html#simpsons-paradox
 fit = lmer(y ~ Severity + (1|Subject), df_full)
 fig1 = fit %>% 
   augment() %>% 
