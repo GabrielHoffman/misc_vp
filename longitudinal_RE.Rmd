@@ -45,11 +45,13 @@ knitr::opts_chunk$set(
 library(ggplot2)
 library(lme4)
 library(lmerTest)
-library(lme4)
 library(variancePartition)
 library(knitr)
+library(broom.mixed)
+library(cowplot)
+library(tidyverse)
 
-n_subjects = 400
+n_subjects = 10
 n_samples = 3
 
 df_full = data.frame(Subject = as.character(sort(rep(1:n_subjects, n_samples))),
@@ -58,9 +60,9 @@ df_full = data.frame(Subject = as.character(sort(rep(1:n_subjects, n_samples))),
 
 beta = 0
 gamma = .5
-sig_subj = .3
+sig_subj = 1
 sig_sub_sever = .2
-sig_noise = 0.01
+sig_noise = 0.1
 
 X_Sub_Sev = apply(model.matrix(~0+Subject, df_full), 2, function(x) x * df_full$Severity)
 
@@ -69,13 +71,17 @@ df_full$y = model.matrix(~0+Time, df_full) %*% beta +
 			model.matrix(~0+Subject, df_full) %*% rnorm(n_subjects,0, sig_subj) + 
 			X_Sub_Sev %*% rnorm(n_subjects,0, sig_sub_sever) + 
 			rnorm(n_subjects*n_samples,0, sig_noise)
+df_full$y = as.vector(df_full$y)
+
+# beta_SEVERITY ~ N(gamma, sig_sub_sever^2)
+
 
 # idx = sample.int( nrow(df_full), 70, replace=FALSE)
 idx = 1:nrow(df_full)
 df = df_full[idx,]
 
 # Plot data
-ggplot(df_full, aes(Severity, y, color=Subject, shape=as.character(Time))) + geom_point(size=2) + theme_bw() + theme(aspect.ratio=1)
+ggplot(df_full, aes(Severity, y, color=Subject, shape=as.character(Time))) + geom_point(size=2) + theme_bw() + theme(aspect.ratio=1, legend.position="none")
 ```
 
 ```{r}
@@ -84,6 +90,61 @@ vp = calcVarPart(fit)
 
 plotPercentBars(data.frame(t(vp))) + theme(aspect.ratio=.1)
 ```
+
+```{r, fig.width=12}
+fit = lmer(y ~ Severity + (1|Subject), df_full)
+fig1 = fit %>% 
+  augment() %>% 
+  clean_names() %>% 
+  ggplot(data = .,
+         aes(x = severity,
+             y = y,
+             group = subject,
+             color = subject)) +
+  geom_line(aes(y = fitted),
+            size = 1, alpha = .5) +
+  geom_point() +
+  ggtitle('~ Severity + (1|Subject)') +
+  theme_bw() + theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio=1)
+
+
+fit = lmer(y ~ Severity + (0+Severity|Subject), df_full)
+fig2 = fit %>% 
+  augment() %>% 
+  clean_names() %>% 
+  ggplot(data = .,
+         aes(x = severity,
+             y = y,
+             group = subject,
+             color = subject)) +
+  geom_line(aes(y = fitted),
+            size = 1, alpha = .5) +
+  geom_point() +
+  ggtitle('~ Severity + (0+Severity|Subject)') +
+  theme_bw() + theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio=1)
+
+
+fit = lmer(y ~ Severity + (1+Severity|Subject), df_full)
+fig3 = fit %>% 
+  augment() %>% 
+  clean_names() %>% 
+  ggplot(data = .,
+         aes(x = severity,
+             y = y,
+             group = subject,
+             color = subject)) +
+  geom_line(aes(y = fitted),
+            size = 1, alpha = .5) +
+  geom_point() +
+  ggtitle('~ Severity + (1+Severity|Subject)') +
+  theme_bw() + theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio=1)
+
+plot_grid(fig1, fig2, fig3, ncol=3)
+
+knitr::knit_exit()
+```
+
+
 
 # Fit models with increasing levels of complexity
 
