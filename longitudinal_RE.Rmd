@@ -47,6 +47,8 @@ library(lme4)
 library(lmerTest)
 library(variancePartition)
 library(knitr)
+library(broom)
+library(janitor)
 library(broom.mixed)
 library(cowplot)
 library(tidyverse)
@@ -141,15 +143,102 @@ fig3 = fit %>%
   theme_bw() + theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio=1)
 
 plot_grid(fig1, fig2, fig3, ncol=3)
+```
+
+Only shared slope: ~ Severity + (1|Subject)
+random slope: ~ Severity + (0+Severity|Subject)
+random slope & random intercept: ~ Severity + (1+Severity|Subject)
+
+
+
+
+Formula `~ Severity + (1|Subject)` uses a subject-specific baseline, and assumes that the effect of Severity on gene expression is the same for each Subject.  This controls the false positive rate when the assuption is satisifed, but not when there are Subject-specific severity effects.
+
+ We can relax this last assuption by using `~ Severity + (1+Severity|Subject)` which decomposes the Severity effect into two components: 1) The global effect of Severity that is shared across subjects and, 2) a "random-slope" term where each Subject get its own Severity coefficient, and a normal prior is placed over these values.  Fitting this model with both components allows you to estimate the 'shared effect' of severity.  This controls the false positive rate even when each Subject has its own severity effect.  
+
+However, this model has a lot of parameters and requires almost complete observations.  With only a smaller set, we cant fit this model.  We can get close, but with lower power, using the model: `~ Severity + (0+Severity|Subject)`, even on incomplete data.
+
+
+
+```{r compare.models, fig.width=8, fig.height=15}
+library("janitor")    # for cleaning column names
+library("broom")      # for tidying up linear models 
+library("broom.mixed")      # for tidying up linear mixed models 
+library("lme4")       # for linear mixed effects models
+library("tidyverse")  # for wrangling, plotting, etc. 
+library("cowplot")
+
+theme_set(theme_classic() + #set the theme 
+            theme(text = element_text(size = 8))) #set the default text size
+
+
+plot_data = function( form, main='' ){
+
+	if( is.null(findbars(form)) ){
+		fit = lm(form, df.simpson)
+	}else{
+		fit = lmer(form, data = df.simpson)
+	}
+
+	fit %>% 
+	  augment() %>% 
+	  clean_names() %>% 
+	  ggplot(data = .,
+	         aes(x = x,
+	             y = y,
+	             group = participant,
+	             color = participant)) +
+	  geom_point() +
+	  geom_line(aes(y = fitted),
+	            size = 1,
+	            color = "black") +
+	  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio=1) + ggtitle(paste(main, '\n~',paste(form)[3]))
+
+ 	# fixef(fit)['x'] + ranef(fit)$participant[,'x']
+}
+
+
+# simulate data
+# from https://psych252.github.io/psych252book/linear-mixed-effects-models-2.html#simpsons-paradox
+set.seed(2)
+
+n_participants = 20
+n_observations = 10
+slope = -10 
+sd_error = 0.4
+sd_participant = 5
+intercept = rnorm(n_participants, sd = sd_participant) %>% sort()
+
+df.simpson = tibble(x = runif(n_participants * n_observations, min = 0, max = 1)) %>%
+  arrange(x) %>% 
+  mutate(intercept = rep(intercept, each = n_observations),
+         y = intercept + x * slope + rnorm(n(), sd = sd_error),
+         participant = factor(intercept, labels = 1:n_participants))
+
+plot_grid(
+	plot_data( y ~ x + participant ),
+	plot_data( y ~ x:participant ),
+	plot_data( y ~ x*participant ),
+	plot_data( y ~ x + (1 | participant) ),
+	plot_data( y ~ (1+x | participant) ),
+	plot_data( y ~ x + (0+x | participant) ),
+	plot_data( y ~ x + (1+x | participant) ), ncol=2)
 
 knitr::knit_exit()
 ```
 
 
 
+
+
+
+
+
+
+
 # Fit models with increasing levels of complexity
 
-Fit a linear model with a single global slope and ignore related measures.  We can see by eye from the plot that the global slope should be one.  And of course that is what we can from this simple model. But it is too simple.  
+Fit a linear model with a single global slope and ignore related measures.  We can see by eye from the plot that the global slope should be one.  And of course that is what we can from this simple model. But it is too simple
 ```{r}
 fit = lm(y ~ Severity, df)
 coef(summary(fit))
@@ -286,18 +375,6 @@ ggplot(df_sim, aes(value)) + geom_histogram() + facet_wrap(~variable) + theme_bw
 
 
 ```
-
-
-Formula `~ Severity + (1|Subject)` uses a subject-specific baseline, and assumes that the effect of Severity on gene expression is the same for each Subject.  This controls the false positive rate when the assuption is satisifed, but not when there are Subject-specific severity effects.
-
- We can relax this last assuption by using `~ Severity + (1+Severity|Subject)` which decomposes the Severity effect into two components: 1) The global effect of Severity that is shared across subjects and, 2) a "random-slope" term where each Subject get its own Severity coefficient, and a normal prior is placed over these values.  Fitting this model with both components allows you to estimate the 'shared effect' of severity.  This controls the false positive rate even when each Subject has its own severity effect.  
-
-However, this model has a lot of parameters and requires almost complete observations.  With only a smaller set, we can't fit this model.  We can get close, but with lower power, using the model: `~ Severity + (0+Severity|Subject)`, even on incomplete data.
-
-
-
-
-
 
 
 
