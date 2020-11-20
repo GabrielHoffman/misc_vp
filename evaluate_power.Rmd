@@ -1,0 +1,429 @@
+---
+title: "Power calculations for grant"
+subtitle: 'Given eQTL for a gene, compute power in CRISPR experiment'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.Date()`"
+documentclass: article
+output: 
+  html_document:
+    smart: false
+---
+
+
+<!--- 
+# run analysis
+# cd /media/sdb1/workspace/scripts/Brennand/COS
+cd /hpc/users/hoffmg01/scripts/Brennand/COS 
+
+ ml pandoc git
+
+system("ml git; git pull")
+
+rmarkdown::render("/hpc/users/hoffmg01/scripts/Brennand/COS/evaluate_power.Rmd")
+   
+
+    toc: true
+--->
+
+Given a gene and the rsid of the top eQTL SNP for that gene, extract 1) gene expression from CommonMind and 2) the SNP genotype.  Then evaluate the regression model: gene ~ SNP + covariates.  Extract \(\beta\) and standard deviation of residuals.  Power calcuations depend on the term (\(\mu_2\) - \(\mu_0\)) / s, where \(\mu_0\) and \(\mu_2\) are the mean expression levels of the two homoyogotes and s is tthe common standard deviation.  Since \(\beta\) is the difference in expression from change one allele, then (\(\mu_2\) - \(\mu_0\)) = 2*\(\beta\).  The standard deviation is computed empirically from the CommonMind data.  But this is computed from post mortem cohort with substantial genetic heterogeneity that is susceptible to high technical variation.  In order to overcome this, we seek to use CRISPR to change the allele of the causal SNP in and isogenic line in order to decrease biological and technical variation.  Thus the effect size of changing the allelic state has the same expected value, but the standard deviations will be much smaller in isogenic lines in controlled laboratory conditions.  Here I evaluate the power for the given \(\beta\) value when s is estimated from CommonMind, as well as when s is scaled to decrease the variation.      
+
+Let \(E_0\) and \(E_2\) be the mean expression in log2 space in each homozygote class.  The expression in raw space is \(2^{E_0}\) and \(2^{E_2}\) so that the fold change is \(\frac{2^{E_2}}{2^{E_0}} \).  So the log fold change is \(E_2 - E_0\) = \(\mu_0 +2\beta - \mu_0\) =  \(2\beta\).
+
+
+```{r load.packages, echo=FALSE, message=FALSE, results='hide', echo=FALSE}
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(knitr)
+
+options(xtable.type="html")
+
+knitr::opts_chunk$set(
+  echo=FALSE,
+  warning=FALSE,
+  message=TRUE,
+  error = FALSE,
+  tidy = FALSE,
+  cache = TRUE,
+  dev = c("png", "pdf"),   fig.width=7, fig.height=7)
+
+options(markdown.HTML.stylesheet = 'css/custom.css')
+```
+
+```{r, echo=FALSE}
+# library(pwr)
+# ensGene = 'ENSG00000214776'
+# beta = 2.67
+# mu = mean(vobj$E[ensGene,])
+
+# logFC = log2(mu+2*beta) - log2(mu)
+# logFC
+
+# FC = (mu+2*beta) / mu
+# log2(FC)
+
+
+# s = sd(2^vobj$E[ensGene,metadata$Cell.Type == levels(metadata$Cell.Type)[2]])
+# d = abs(FC / s)
+# n1 = 4
+# n2 = 12
+
+# pwr.t2n.test(n1=n1, n2=n2, d=d, sig.level=0.05, alternative="greater")
+
+
+# s2 = sd(vobj$E[ensGene,metadata$Cell.Type == levels(metadata$Cell.Type)[2]])
+# pwr.t2n.test(n1=n1, n2=n2, d=abs(logFC/s2), sig.level=0.05, alternative="greater")
+```
+
+
+```{r load.library, echo=FALSE, results="hide", message=FALSE}
+library(snpStats)
+library(pwr)
+library(foreach)
+library(readr)
+library(edgeR)
+library(variancePartition)
+library(ggplot2)
+library(data.table)
+library(synapser)
+
+synLogin()
+```
+
+```{r download, echo=FALSE, results="hide", message=FALSE}
+
+geneInfo = read.csv(synGet( 'syn7113731' )$path, header=TRUE, stringsAsFactors=FALSE) 
+
+# read data
+geneCountsIn = read.table(synGet('syn8413221')$path, header=TRUE, sep='\t', check.names = FALSE)
+
+# extract gene counts
+geneCounts = geneCountsIn[,-c(1:6)]
+rownames(geneCounts) = geneCountsIn$Geneid
+
+# identify genes with sufficient expression
+isexpr = rowSums(cpm(geneCounts)>1) >= 5
+
+# normalize counts by total library size
+dgeObj = DGEList(geneCounts[isexpr,])
+dgeObj = calcNormFactors( dgeObj, method="none" )
+
+# convert to log2 RPKM by normalizing by gene legnth
+geneExpr_log2RPKM = rpkm(dgeObj, gene.length=geneCountsIn$Length[isexpr], log=TRUE)
+
+
+expr_CPM = read.table(synGet('syn7253892')$path, header=TRUE, sep='\t', check.names = FALSE)
+rownames(expr_CPM) = expr_CPM$ensembl_gene_id
+expr_CPM = expr_CPM[,-c(1:2)]
+colnames(expr_CPM) = gsub("RNA_PFC_", "", colnames(expr_CPM))
+colnames(expr_CPM) = gsub("RNA_BP_PFC", "BP", colnames(expr_CPM))
+
+design = read.table(synGet('syn7253894')$path, header=TRUE, sep='\t', check.names = FALSE)
+rownames(design) = colnames(expr_CPM)
+```
+
+```{r load.plink, echo=FALSE, results="hide", message=FALSE}
+# ensGene = 'ENSG00000214776'
+# rsid = 'rs3863335'
+
+# testSet = data.frame(gene=c('FURIN', 'TMED7', 'GORASP2', 'SLCO2A1', 'ENSG00000214776'),
+# 					rsid = c('rs4702', 'rs56165083', 'rs6433224', 'rs16842260', 'rs3863335'), stringsAsFactors=FALSE)
+
+geneList = array(read.table("/sc/arion/projects/psychgen/resources/commonmind/sczGWS_predixcanOrColoc2.genes", stringsAsFactors=FALSE))
+maxEQTL = read.table("/sc/arion/projects/psychgen/resources/commonmind/gene_maxEqtl_beta.txt", header=TRUE,  stringsAsFactors=FALSE)
+testSet = data.frame(gene=geneList)
+testSet$ensGene = geneInfo$Geneid[match(testSet$gene, geneInfo$geneName)]
+
+idx = match(testSet$ensGene, maxEQTL$gene)
+testSet$rsid[!is.na(idx)] = maxEQTL$snp[idx[!is.na(idx)]]
+testSet = testSet[!is.na(testSet$rsid),]
+
+# Load genotype data
+# only load the site variant of interest
+file = '/sc/arion/projects/CommonMind/data/genotypes/imputation/final/hardcall/CM5-pos-imputed-hardcall95'
+BIM = as.data.table(read_tsv( paste0(file, ".bim"), col_names=FALSE))
+idx = testSet$rsid %in% BIM$X2
+data = read.plink( paste0(file, ".bed"), paste0(file, ".bim"), paste0(file, ".fam"), select.snps=testSet$rsid[idx]) 
+```
+
+Compute power based on 4 isogenic lines with modification compared to 12 controls.  The focused analysis uses a one sided t-test with p< 0.05.  The genome-wide test uses a two-sided t-test with p<0.05/20000.
+
+```{r}
+n1 = 4
+n2 = 12
+```
+
+```{r load.sd.isogenic}
+# sd_isogenic_in = read.csv("~/scripts/Brennand/COS/CRISPRar_RNAseq_SD.csv", stringsAsFactors=FALSE)
+
+sd_isogenic_in = read.csv(synGet('syn23568791')$path, stringsAsFactors=FALSE)
+
+colnames(sd_isogenic_in) = c("Geneid", "sd") 
+
+sd_isogenic = merge( sd_isogenic_in, geneInfo[,c("Geneid", "geneName")], by="Geneid")
+```
+
+```{r eval.power}
+idx = which(testSet$rsid %in% colnames(data$genotypes@.Data))
+
+pwrCalc = foreach(i = idx ) %do% {
+	# for(i in idx){
+
+	ensGene = testSet$ensGene[i]
+	rsid = testSet$rsid[i]
+
+	hgncGene = with(geneInfo, geneName[match(ensGene, Geneid)])
+
+	alleles = with(data$map[rsid,], c(NA, paste0(allele.1, '/', allele.1), paste0(allele.1, '/', allele.2), paste0(allele.2, '/', allele.2)))
+
+	allelicState = data.frame(SNPn= data$genotypes@.Data[,rsid,drop=FALSE], 
+		SNP = factor(alleles[as.numeric(data$genotypes@.Data[,rsid,drop=FALSE])+1], alleles))
+
+	expr = t(expr_CPM[ensGene,,drop=FALSE])	
+	df = merge(expr, allelicState, by="row.names")
+	df[,rsid] = as.numeric(df[,rsid])
+	df[,rsid][df[,rsid]==0] = NA
+
+	j = match(df$Row.names, rownames(design))
+
+	D = cbind(SNP=as.numeric(df[,testSet$rsid[i]]), design[j,])
+	fit = lm(df[,testSet$ensGene[i]] ~ ., D)
+	
+	# for consitency
+	D = cbind(SNP=as.numeric(df[,testSet$rsid[i]]), design[j,-c(1:3)])
+	fit2 = lm(df[,testSet$ensGene[i]] ~ ., D)
+
+
+	s = sd(residuals(fit)) 
+	logFC = 2*coef(fit)[2]
+
+	powerFocused = pwr.t2n.test(n1=n1, n2=n2, d=abs(logFC/s), sig.level=0.05, alternative="greater")
+	powerAll = pwr.t2n.test(n1=n1, n2=n2, d=abs(logFC/s), sig.level=0.05/20000)
+
+	# all results
+	results = data.frame(hgncGene=hgncGene, ensGene = ensGene, rsid = rsid, eqtlp = coef(summary(fit))[2,4], two_beta = as.numeric(logFC), sd = s, percentVar = calcVarPart(fit2)['SNP'], powerFocused=powerFocused$power, powerAll= powerAll$power, sdiso=sd_isogenic[sd_isogenic$geneName==hgncGene,'sd'])	
+	
+	# plot
+	# paste0(hgncGene, ' (', ensGene, ')')
+	fig = ggplot(subset(df, !is.na(SNP)), aes_string("SNP", ensGene), filter()) + geom_boxplot(aes(fill=SNP)) + scale_fill_manual(values=c("#CD7B7BFF", "#CD5252FF", "#CD0000FF")) + theme_bw(10) + ggtitle(hgncGene) + 	xlab(rsid) + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1, legend.position="none") + ylab(bquote(Expression~(log[2]~CPM)))
+
+	# lim = range(subset(df, !is.na(SNP))[[ensGene]])
+	# annot1 = paste0('p[eQTL]==', format(results$eqtlp, scientific=TRUE, digits=3))
+	# annot2 = paste0('beta==', format(coef(fit)[2], digits=3))
+	# annot3 = paste0('sigma==', format(s, digits=3))
+	# annot4 = paste0('var==', format(results$percentVar, digits=3))
+
+	# k = (lim[2] - lim[1])/20
+
+	# fig = fig + 	annotate("text", x = 1, y = lim[2], label = annot1, parse=TRUE) +
+	# 		annotate("text", x = 1, y = lim[2] -k, label = annot2, parse=TRUE) +
+	# 		annotate("text", x = 1, y = lim[2]-2*k, label = annot3, parse=TRUE) +
+	# 		annotate("text", x = 1, y = lim[2]-3*k, label = annot4, parse=TRUE)
+
+	list(results=results, fig=fig)
+}
+```
+
+# Power when beta and s are estimated in CommonMind data
+```{r eqtl.table, results="asis"}
+pwrCalcTable = do.call("rbind", lapply(pwrCalc, function(x) x$results))
+pwrCalcTable$eqtlp = format(pwrCalcTable$eqtlp, scientific=TRUE, digits=2)
+rownames(pwrCalcTable) = NULL
+kable(pwrCalcTable)  
+```
+
+# eQTL plots
+```{r eqlt.plot, fig.width=12, fig.height=18, cache=FALSE}  
+do.call("grid.arrange",c(lapply(pwrCalc, function(x) x$fig),ncol=4))     
+```
+
+# Power curves when s is scaled (i.e. decreased) as variation decreases.  
+There is no way to know how much using isogenic lines will decrease this variation.  
+```{r power.curve, message=FALSE}
+get_power_curve = function(sig.level=0.05, alternative="greater"){
+	 foreach(i = idx, .combine=rbind ) %do% {
+		ensGene = testSet$ensGene[i]
+		rsid = testSet$rsid[i]
+
+		hgncGene = with(geneInfo, geneName[match(ensGene, Geneid)])
+
+		expr = t(expr_CPM[ensGene,,drop=FALSE])	
+		df = merge(expr, data$genotypes@.Data[,rsid,drop=FALSE], by="row.names")
+		df[,rsid] = as.numeric(df[,rsid])
+		df[,rsid][df[,rsid]==0] = NA
+
+		j = match(df$Row.names, rownames(design))
+
+		D = cbind(SNP=as.numeric(df[,testSet$rsid[i]]), design[j,])
+
+		fit = lm(df[,testSet$ensGene[i]] ~ ., D )
+		# summary(fit)
+
+		foreach(scaling = seq(1, 10, length.out=100), .combine=rbind) %do% {
+			s = sd(residuals(fit)) / scaling
+			logFC = 2*coef(fit)[2]
+
+			# mu = coef(fit)[1]
+			# beta = coef(fit)[2]
+			# logFC = log2(mu+2*beta) - log2(mu)
+
+			res = pwr.t2n.test(n1=n1, n2=n2, d=abs(logFC/s), sig.level=sig.level, alternative=alternative)
+
+			data.frame(hgncGene=hgncGene,ensGene=ensGene, scaling=scaling, power=res$power*100)
+		}
+	}
+}
+
+powerCurves = get_power_curve(0.05, "greater")
+
+ggplot(powerCurves, aes(scaling, power)) + geom_line(aes(colour=hgncGene)) + theme_bw(15) + ylim(0, 100) + xlim(1, 10) +
+	scale_x_discrete(name ="Scaling of standard deviation", limits=c(1, 5, 10)) + theme(legend.position=c(.80,.25), aspect.ratio=1) + scale_colour_discrete(name = "Gene") + ylab("Power (%)")
+```
+
+# Genome-wide power
+```{r genomewide.power, message=FALSE}
+powerCurvesGenomeWide = get_power_curve(0.05/20000, "greater")
+
+ggplot(powerCurvesGenomeWide, aes(scaling, power)) + geom_line(aes(colour=hgncGene)) + theme_bw(15) + ylim(0, 100) + xlim(1, 10) +
+	scale_x_discrete(name ="Scaling of standard deviation", limits=c(1, 5, 10)) + theme(aspect.ratio=1) + scale_colour_discrete(name = "Gene") + ylab("Power (%)")
+```
+
+# Pick genes
+```{r 3genes.combine, message=FALSE}
+
+geneset = c('FURIN', "GATAD2A", "TCF20")
+library(foreach)
+
+idx = which(sapply(pwrCalc, function(x) x$results$hgncGene) %in% geneset)
+
+df = foreach(i = idx, .combine=rbind) %do% {
+	pwrCalc[[i]]$results
+}
+
+df2 = with(df, data.frame(gene = factor(hgncGene), rsid = rsid, 
+	"peQTL"= format(eqtlp, scientific=TRUE, digits=3), 
+	beta 	= format(two_beta/2, digits=3), 
+	sigma= format(sd, digits=3), 
+	'var' = format(100*percentVar, digits=2), 
+	sdiso=format(sdiso, digits=3), 
+	scaling=format(sd/sdiso, digits=3)))
+# df2$gene = factor(as.character(df2$gene), levels=names(sort(minValues)))
+df2 = as.matrix( df2[match(rev(levels(df2$gene)), df2$gene),] )
+rownames(df2) = c()
+
+tt <- ttheme_default(colhead=list(fg_params = list(parse=TRUE)))
+geneTable = grid.table(df2, theme=tt)
+
+figList = lapply(idx, function(i) pwrCalc[[i]]$fig)
+
+```
+
+```{r 3genes.power, message=FALSE, fig.width=12, fig.height=8, cache=FALSE}
+library(foreach)
+df = subset(powerCurves, hgncGene %in% geneset)
+df = droplevels(df)	
+
+minValues = sapply( geneset, function(gene) with(df,min(power[hgncGene == gene])))
+df$hgncGene = factor(df$hgncGene, names(sort(minValues)))
+
+figPower = ggplot(df, aes(scaling, power)) + geom_line(aes(colour=hgncGene)) + theme_bw(15) + ylim(0, 100) + xlim(1, 10) + scale_colour_discrete(name = "Gene")+ ylab("Power (%)") + scale_x_discrete(name ="Reducing standard deviation", limits=c(1, 5, 10), labels=c(expression(sigma), expression(sigma/5), expression(sigma/10))) + theme(legend.position=c(.80,.25), aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Power of targeted CRISPR allele swap") 
+
+df_scaling = data.frame(df2, stringsAsFactors=FALSE)
+df_scaling$scaling = as.numeric(df_scaling$scaling)
+
+df_scaling$power = unlist(foreach(gene = df_scaling$gene) %do% {
+	i = which.min( abs(df_scaling[df_scaling$gene==gene,"scaling"] - df[df$hgncGene==gene,'scaling']))
+	df[df$hgncGene==gene,][i,"power"]
+})
+
+figPower = figPower + geom_point(data=df_scaling, aes(scaling,power, colour=gene), size=2)
+
+
+layout = matrix(c(1,1,1,5,5,5,2,3,4,5,5,5), ncol = 6, byrow = TRUE) 
+
+grid.arrange(tableGrob(df2), figList[[1]], figList[[2]] + ylab(""), figList[[3]] + ylab(""), figPower,layout_matrix=layout)
+```
+
+# get cures with specific Sd values
+```{r, fig.width=12, fig.height=8, cache=FALSE}
+
+geneset = sapply(pwrCalc, function(x) x$results$hgncGene)
+geneset = c("RERE", 'PTPRU', 'CLCN3', 'THOC7', 'FURIN')
+
+idx = which(sapply(pwrCalc, function(x) x$results$hgncGene) %in% geneset)
+
+df = foreach(i = idx, .combine=rbind) %do% {
+	pwrCalc[[i]]$results
+}
+
+df2 = with(df, data.frame(gene = hgncGene, rsid = rsid, 
+	"peQTL"= format(eqtlp, scientific=TRUE, digits=3), 
+	beta 	= format(two_beta/2, digits=3), 
+	sigma= format(sd, digits=3), 
+	'var' = format(100*percentVar, digits=2), 
+	sdiso=format(sdiso, digits=3), 
+	scaling=sd/sdiso))
+
+
+df = subset(powerCurves, hgncGene %in% geneset)
+df = droplevels(df)	
+
+figPower = ggplot(df, aes(scaling, power)) + geom_line(aes(colour=hgncGene)) + theme_bw(15) + ylim(0, 100) + xlim(1, 10) + scale_colour_discrete(name = "Gene")+ ylab("Power (%)") + scale_x_discrete(name ="Reducing standard deviation", limits=c(1, 5, 10), labels=c(expression(sigma), expression(sigma/5), expression(sigma/10))) + theme(legend.position=c(.80,.25), aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ggtitle("Power of targeted CRISPR allele swap") 
+
+df_scaling = data.frame(df2, stringsAsFactors=FALSE)
+df_scaling$scaling = pmax(1, as.numeric(df_scaling$scaling))
+
+df_scaling$power = unlist(foreach(gene = df_scaling$gene) %do% {
+	i = which.min( abs(df_scaling[df_scaling$gene==gene,"scaling"] - df[df$hgncGene==gene,'scaling']))
+	df[df$hgncGene==gene,][i,"power"]
+})
+df_scaling$gene = factor(df_scaling$gene, levels(df$hgncGene))
+
+figPower + geom_point(data=df_scaling, aes(scaling,power, colour=gene), size=2)
+```
+
+
+
+```{r paired.test, height=3, width=7}
+library(ggplot2)
+library(reshape2)
+library(gridExtra)
+
+data = data.frame(x=c(rep('Ref/Ref',4), rep('Alt/Alt', 4)), y=c(1.5, 1.1, 1.8, 2, 
+												2.2,  1.3, 3.1,2.5)-1.1)
+data$x = factor(data$x, c("Ref/Ref", "Alt/Alt"))
+
+fig1 = ggplot(data, aes(x,y)) + geom_point() + theme_bw(14) + 
+	theme(legend.position="none", aspect.ratio=1,plot.title = element_text(hjust = 0.5)) + xlab("Class") + ylab("Expression") +
+ 	geom_segment(aes(x = .8, y = mean(y), xend = 1.2, yend = mean(y)), 
+ 		data = subset(data, x=="Ref/Ref")) +
+ 	geom_segment(aes(x = 1.8, y = mean(y), xend = 2.2, yend = mean(y)), 
+ 		data = subset(data, x=="Alt/Alt")) +
+ 	annotate("text", x=1.4, y=with(subset(data, x=="Ref/Ref"), mean(y)), label="mu[Ref/Ref]", parse=TRUE) + annotate("text", x=2.4, y=with(subset(data, x=="Alt/Alt"), mean(y)), label="mu[Alt/Alt]", parse=TRUE) + ggtitle("Independent samples")
+
+
+
+data2 = subset(data, x=="Ref/Ref")
+data2$end = "Alt/Alt"
+data2$y2 = subset(data, x=="Alt/Alt")$y
+
+fig2 = ggplot(data, aes(x,y)) + geom_point() + theme_bw(14) + 
+	theme(legend.position="none", aspect.ratio=1,plot.title = element_text(hjust = 0.5)) + xlab("Class") + ylab("Expression") +
+	geom_segment(aes(x = x, y = y, xend = end, yend = y2), 
+ 		data = data2) + ggtitle("Paired samples") +
+	annotate("text", x=1.5,y=with(data2, y+(y2-y)/2) + c(0.1, .07,.12,.08), label=paste0("Delta[", 4:1, ']')[order(with(data2, y+(y2-y)/2))], parse=TRUE)
+
+
+fig5 = ggplot() + theme_void() + annotate("text", x=0, y=0, label='mu[Alt/Alt] - mu[Ref/Ref] != 0', parse=TRUE) + ggtitle("Statistical test")
+
+fig6 = ggplot() + theme_void() + annotate("text", x=0, y=0, label='bar(Delta) != 0', parse=TRUE) + ggtitle("")
+
+
+
+fig3 = ggplot() + theme_void() + annotate("text", x=0, y=0, label='expression ~ class') + ggtitle("R regression formula")
+fig4 = ggplot() + theme_void() + annotate("text", x=0, y=0, label='expression ~ class + donor') + ggtitle("")
+
+
+grid.arrange(fig1, fig2, fig5, fig6, fig3, fig4, ncol=2, heights=c(1, .1, .1))
+
+```
