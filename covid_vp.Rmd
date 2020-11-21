@@ -55,6 +55,7 @@ knitr::opts_chunk$set(
 
 info = fread("/sc/arion/projects/CommonMind/roussp01a/COVID_SC/FrozenBrain/results/freq_celltype.csv")
 info$covid = factor(info$covid)
+info$subject = factor(info$subject)
 
 info$Biosample = factor(with(info, paste(subject, pid, tissue)))
 
@@ -114,6 +115,13 @@ figList = lapply( names(vpList), function(id){
   })   
 
 plot_grid(plotlist = figList, ncol=3)
+```
+
+```{r facet_wrap}
+df  = cbind(info[,16:22], t(CT.quant))
+df_melt = reshape2::melt(df, id.vars=colnames(info[,16:22]))
+
+ggplot(df_melt, aes(subject, value, color=covid)) + geom_point() + theme_bw() + theme(aspect.ratio=1) + facet_wrap(~tissue + variable)
 ```
 
 
