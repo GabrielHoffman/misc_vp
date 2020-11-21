@@ -110,6 +110,7 @@ Compute variance partitioning for cell fractions (log ratios) for the whole data
 # use centered log ratios
 pseudoFrac = 1e-2
 CT.quant = t(clr(info[,1:15] + pseudoFrac))
+colnames(CT.quant) = 1:ncol(CT.quant)
 
 # colnames(CT.quant) = info$Biosample
 
@@ -193,7 +194,8 @@ dreamList = lapply( unique(info$tissue), function(Tissue){
 
   idx = which(info$tissue == Tissue)
  
-  dream( CT.quant[,idx], form, info[idx,]) 
+  fit = dream( CT.quant[,idx], form, info[idx,]) 
+
 })
 names(vpList) = unique(info$tissue)
 
