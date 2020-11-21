@@ -139,7 +139,7 @@ figList = lapply( sort(unique(info$tissue)), function(Tissue){
 
   wt = with( unique(res$variation), wilcox.test( value[type=="Same Donor"], value[type=="Different Donor"], alternative="greater"))
 
-  res$fig + ggtitle( paste0(Tissue, ": (p=", format(wt$p.value, digits=3), ')') )
+  res$fig + ggtitle( paste0(Tissue, ": (p=", format(wt$p.value, digits=3), ')') ) + ylim(0.5, 1)
 })
 plot_grid( plotlist=figList, nrow=1)
 ```
