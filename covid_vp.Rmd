@@ -13,16 +13,16 @@ output:
 
 <!---
 
-cd /hpc/users/hoffmg01/work/covarr-de
+cd /hpc/users/hoffmg01/work/misc_vp
 # rm -rf molec_profiling_cache/
-ml git pandoc R/3.6.3 # to get peer
+ml git pandoc 
 git pull
 R
 
 system("git pull")
 
 
-rmarkdown::render("combined_analysis/eval_resid_in_each.Rmd")
+rmarkdown::render("covid_vp.Rmd")
 
 
 
@@ -43,7 +43,7 @@ library(edgeR)
 library(variancePartition)
 
 })
-source("../common_functions/common_functions.R")
+# source("../common_functions/common_functions.R")
 
 knitr::opts_chunk$set(
   echo = FALSE,
