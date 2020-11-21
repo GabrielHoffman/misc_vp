@@ -113,6 +113,7 @@ pseudoFrac = 1e-2
 CT.quant = t(clr(info[,1:15] + pseudoFrac))
 
 D = 1 - cor(CT.quant)
+colnames(D) = info$Biosample
 hcl = hclust(as.dist(D), method="ward.D2")
 plot(hcl)
 colnames(CT.quant) = 1:ncol(CT.quant)
