@@ -155,7 +155,9 @@ C = canCorPairs(~ pid + subject + covid + tissue + Biosample, info)
 plotCorrMatrix(C)
 ```
 
-There are 4 samples per subject per brain region.  These 4 samples represent 2 disections and 2 10X runs.  I refer to the same `Biosample`  to mean to same physical piece of tissue run on two 10X batches.    So even though there are 108 samples, there are only 9 subjects.  This is exactly the problem that `dream` (by calling `lmer`) is meant to address.  Ignoring the repeated measures can lead to false positives.  See [Jostins, et al, PNAS 2012](https://www.pnas.org/content/109/18/E1048) for an example. 
+There are 4 samples per subject per brain region.  These 4 samples represent 2 disections and 2 10X runs.  I refer to the same `Biosample`  to mean to same physical piece of tissue run on two 10X batches.    So even though there are 108 samples, there are only 9 subjects. Based on the study design, and the variance partition below it is essential to account for `(1|subject)`.  Since the 10X run accounts for very little variation, it is not critical to account for `(1|Biosample)` but the results dont change much if you do.  
+
+This is exactly the problem that `dream` (by calling `lmer`) is meant to address.  Ignoring the repeated measures can lead to false positives.  See [Jostins, et al, PNAS 2012](https://www.pnas.org/content/109/18/E1048) for an example. 
 
 
 ```{r facet_wrap, fig.width=12, fig.height=30}
@@ -234,11 +236,10 @@ ggplot(tab, aes(CT, z.std, fill=(FDR < 0.10))) + geom_bar(stat="identity") + fac
 
 
 # Gene expression
-
-
 ```{r read.gene.expression}
 geneExpr = fread('/sc/arion/projects/CommonMind/roussp01a/COVID_SC/FrozenBrain/results/gene_expression_v10k.csv')  
 metadata = fread('/sc/arion/projects/CommonMind/roussp01a/COVID_SC/FrozenBrain/results/metadata.csv')
+
 ```
 
 
