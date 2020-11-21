@@ -121,7 +121,7 @@ plot_grid(plotlist = figList, ncol=3)
 df  = cbind(info[,16:22], t(CT.quant))
 df_melt = reshape2::melt(df, id.vars=colnames(info[,16:22]))
 
-ggplot(df_melt, aes(subject, value, color=covid)) + geom_point() + theme_bw() + theme(aspect.ratio=1) + facet_wrap(~ variable + tissue, ncol=3)
+ggplot(df_melt, aes(subject, value, color=covid)) + geom_point() + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + facet_wrap(~ variable + tissue, ncol=3)
 ```
 
 
