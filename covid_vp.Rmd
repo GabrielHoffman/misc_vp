@@ -79,7 +79,7 @@ pseudoFrac = 1e-4
 # form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue)
 form = ~ (1|pid) + (1|subject) + (1|covid) + (covid|tissue)
 
-vp = fitExtractVarPartModel( CT.quant, form, info)  
+vp = fitExtractVarPartModel( CT.quant, form, info)   
 
 plotPercentBars(vp)
 ``` 
@@ -96,7 +96,7 @@ names(vpList) = unique(info$tissue)
 
 figList = lapply( names(vpList), function(id){
   plotPercentBars( vpList[[id]] ) + ggtitle(id) + theme(legend.position="bottom")
-  }) 
+  })   
 
 plot_grid(plotlist = figList, ncol=3)
 ```
