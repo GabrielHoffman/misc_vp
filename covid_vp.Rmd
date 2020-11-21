@@ -21,7 +21,6 @@ R
 
 system("git pull")
 
-
 rmarkdown::render("covid_vp.Rmd")
 
 
@@ -53,8 +52,7 @@ knitr::opts_chunk$set(
   cache = TRUE)
 ```
 
-# Variance partitioning
-Compute variance partitioning for cell fractions (log ratios) for the whole dataset and then each tissue
+# read data
 ```{r}
 
 info = fread("/sc/arion/projects/CommonMind/roussp01a/COVID_SC/FrozenBrain/results/freq_celltype.csv")
@@ -65,13 +63,18 @@ table(info$subject)
 table(info$clinical)
 table(info$tissue)
 table(info$covid)
+```
 
+# Variance partitioning
+Compute variance partitioning for cell fractions (log ratios) for the whole dataset and then each tissue
+
+```{r CT.vp}
 # use observed cell type frations
-# CT.quant = t(info[,1:15])
+CT.quant = t(info[,1:15])
 
 # use centered log ratios
 pseudoFrac = 1e-4
-CT.quant = t(clr(info[,1:15] + pseudoFrac))
+# CT.quant = t(clr(info[,1:15] + pseudoFrac))
 
 # form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue)
 form = ~ (1|pid) + (1|subject) + (1|covid) + (covid|tissue)
