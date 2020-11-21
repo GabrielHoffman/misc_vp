@@ -70,11 +70,11 @@ Compute variance partitioning for cell fractions (log ratios) for the whole data
 
 ```{r CT.vp}
 # use observed cell type frations
-CT.quant = t(info[,1:15])
+# CT.quant = t(info[,1:15])
 
 # use centered log ratios
 pseudoFrac = 1e-4
-# CT.quant = t(clr(info[,1:15] + pseudoFrac))
+CT.quant = t(clr(info[,1:15] + pseudoFrac))
 
 # form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue)
 form = ~ (1|pid) + (1|subject) + (1|covid) + (covid|tissue)
@@ -89,7 +89,7 @@ form = ~ (1|pid) + (1|subject) + (1|covid)
 vpList = lapply( unique(info$tissue), function(Tissue){
 
   idx = which(info$tissue == Tissue)
-
+ 
   fitExtractVarPartModel( CT.quant[,idx], form, info[idx,]) 
 })
 names(vpList) = unique(info$tissue)
