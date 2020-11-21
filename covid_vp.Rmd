@@ -114,7 +114,7 @@ CT.quant = t(clr(info[,1:15] + pseudoFrac))
 
 D = 1 - cor(CT.quant)
 colnames(D) = info$Biosample
-hcl = hclust(as.dist(D), method="ward.D2")
+hcl = hclust(as.dist(D))
 plot(hcl)
 colnames(CT.quant) = 1:ncol(CT.quant)
 ```
@@ -154,7 +154,7 @@ C = canCorPairs(~ pid + subject + covid + tissue + Biosample, info)
 plotCorrMatrix(C)
 ```
 
-There are 4 samples per subject per brain region.  These 4 samples represent 2 disections and 2 10X runs.  So even though there are 108 samples, there are only 9 subjects.
+There are 4 samples per subject per brain region.  These 4 samples represent 2 disections and 2 10X runs.  So even though there are 108 samples, there are only 9 subjects.  This is exactly the problem that `dream` (by calling `lmer`) is meant to address.  Ignoring the repeated measures can lead to false positives.  See [Jostins, et al, PNAS 2012](https://www.pnas.org/content/109/18/E1048) for an example. 
 
 
 ```{r facet_wrap, fig.width=12, fig.height=30}
