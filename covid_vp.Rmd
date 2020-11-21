@@ -19,9 +19,7 @@ ml git pandoc
 git pull
 R
 
-system("git pull")
-
-rmarkdown::render("covid_vp.Rmd")
+system("git pull"); rmarkdown::render("covid_vp.Rmd")
 
 
 
@@ -68,7 +66,7 @@ table(info$covid)
 # Variance partitioning
 Compute variance partitioning for cell fractions (log ratios) for the whole dataset and then each tissue.  The `clr` transformation computes the log ration of each cell type fraction compared to a single, centered value.  The macrophage signal is only apparent with this transformation.
 
-```{r CT.hclust, fig.width=12}
+```{r CT.hclust, fig.width=16}
 # use observed cell type frations
 # CT.quant = t(info[,1:15])
 
