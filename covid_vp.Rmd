@@ -194,7 +194,7 @@ dreamList = lapply( unique(info$tissue), function(Tissue){
 
   idx = which(info$tissue == Tissue)
  
-  fit = dream( CT.quant[,idx], form, info[idx,]) 
+  fit = dream( as.data.frame(CT.quant[,idx]), form, info[idx,]) 
 
 })
 names(vpList) = unique(info$tissue)
