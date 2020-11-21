@@ -73,7 +73,7 @@ Compute variance partitioning for cell fractions (log ratios) for the whole data
 # CT.quant = t(info[,1:15])
 
 # use centered log ratios
-pseudoFrac = 1e-4
+pseudoFrac = 1e-2
 CT.quant = t(clr(info[,1:15] + pseudoFrac))
 
 colnames(CT.quant) = info$Biosample
@@ -83,6 +83,11 @@ hcl = hclust(as.dist(D), method="ward.D2")
 plot(hcl)
 ```
 
+```{r cancor}
+C = canCorPairs(~ pid + subject + covid + tissue + Biosample, info)
+
+plotCorrMatrix(C)
+```
 
 
 ```{r CT.vp}
