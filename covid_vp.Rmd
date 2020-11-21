@@ -103,6 +103,7 @@ table(info$covid)
 # Variance partitioning
 Compute variance partitioning for cell fractions (log ratios) for the whole dataset and then each tissue.  The `clr` transformation computes the log ration of each cell type fraction compared to a single, centered value.  The macrophage signal is only apparent with this transformation.
 
+### Hierarchical clustering
 ```{r CT.hclust, fig.width=16}
 # use observed cell type frations
 # CT.quant = t(info[,1:15])
@@ -119,6 +120,7 @@ hcl = hclust(as.dist(D), method="ward.D2")
 plot(hcl)
 ```
 
+### PCA
 ```{r pca, fig.width=12, fig.height=6}
 dcmp = prcomp( t(CT.quant) )
 info = cbind(info, dcmp$x[,1:4])
@@ -127,6 +129,7 @@ rownames(info) = c()
 ggplot( info, aes(PC1, PC2, color=subject, shape=tissue)) + geom_point() + theme_bw() + theme(aspect.ratio=1)
 ```
 
+### Compare similarity between samples from same or different donors for each brain region
 ```{r, within.between, fig.width=12, fig.height=6}
 figList = lapply( unique(info$tissue), function(Tissue){
   idx = which(info$tissue == Tissue)
@@ -152,7 +155,9 @@ C = canCorPairs(~ pid + subject + covid + tissue + Biosample, info)
 plotCorrMatrix(C)
 ```
 
-There are 4 samples per subject per brain region.  These 4 samples represent 2 disections and 2 10X runs.
+There are 4 samples per subject per brain region.  These 4 samples represent 2 disections and 2 10X runs.  So even though there are 108 samples, there are only 9 subjects.
+
+
 ```{r facet_wrap, fig.width=12, fig.height=30}
 df  = cbind(info[,16:22], t(CT.quant))
 df_melt = reshape2::melt(df, id.vars=colnames(info[,16:22]))
@@ -160,6 +165,7 @@ df_melt = reshape2::melt(df, id.vars=colnames(info[,16:22]))
 ggplot(df_melt, aes(subject, value, color=covid)) + geom_point() + theme_bw() + theme(aspect.ratio=1, axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + facet_wrap(~ variable + tissue, ncol=3) + ylim('Centered log ratio')
 ```
 
+### Variance partition for the entire dataset
 
 ```{r CT.vp}
 # form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue)
@@ -170,6 +176,7 @@ vp = fitExtractVarPartModel( CT.quant, form, info)
 plotPercentBars(vp)
 ``` 
 
+### Variance partition for each tissue
 ```{r per.tissue, fig.width=12}
 form = ~ (1|pid) + (1|subject) + (1|covid) + (1|Biosample)
 vpList = lapply( unique(info$tissue), function(Tissue){
@@ -187,7 +194,7 @@ figList = lapply( names(vpList), function(id){
 plot_grid(plotlist = figList, ncol=3)
 ```
 
-
+### Hypothesis testing for each tissue
 ```{r per.tissue.dream, fig.width=12}
 form = ~ (1|pid) + (1|subject) + covid + (1|Biosample)
 
