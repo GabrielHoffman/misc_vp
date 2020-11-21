@@ -189,16 +189,35 @@ plot_grid(plotlist = figList, ncol=3)
 
 
 ```{r per.tissue.dream, fig.width=12}
-form = ~ (1|pid) + (1|subject) + (1|covid) + (1|Biosample)
-dreamList = lapply( unique(info$tissue), function(Tissue){
+form = ~ (1|pid) + (1|subject) + covid + (1|Biosample)
+
+fitList = lapply( unique(info$tissue), function(Tissue){
 
   idx = which(info$tissue == Tissue)
  
-  fit = dream( as.data.frame(CT.quant[,idx]), form, info[idx,]) 
+  cellFrac = data.frame(CT.quant[,idx], check.names=FALSE)
 
+  dream( cellFrac, form, info[idx,]) 
 })
-names(vpList) = unique(info$tissue)
+names(fitList) = unique(info$tissue)
 
+
+tabList = lapply( unique(info$tissue), function(Tissue){
+
+  fit = fitList[[Tissue]]
+
+  df = topTable(fit, coef="covid1", sort.by='none', number=Inf)
+
+  df$Tissue = Tissue
+  df$CT = rownames(df)
+
+  df
+})
+tab = do.call(rbind, tabList)
+
+tab$FDR = p.adjust(tab$P.Value, "fdr")
+
+ggplot(tab, aes(CT, z.std, fill=(FDR < 0.10))) + geom_bar(stat="identity") + facet_wrap(~Tissue) + theme_bw() + theme(aspect.ratio=1) + coord_flip() + scale_fill_manual(values=c("black", "red"))
 ```
 
 
