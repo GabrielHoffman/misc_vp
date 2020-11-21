@@ -83,7 +83,7 @@ hcl = hclust(as.dist(D), method="ward.D2")
 plot(hcl)
 ```
 
-```{r cancor}
+```{r cancor, fig.width=6, fig.height=6}
 C = canCorPairs(~ pid + subject + covid + tissue + Biosample, info)
 
 plotCorrMatrix(C)
