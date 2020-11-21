@@ -125,7 +125,7 @@ info = cbind(info, dcmp$x[,1:4])
 ggplot( info, aes(PC1, PC2, color=subject, shape=tissue)) + geom_point() + theme_bw() + theme(aspect.ratio=1)
 ```
 
-```{r}
+```{r, within.between, fig.width=12, fig.height=6}
 figList = lapply( unique(info$tissue), function(Tissue){
   idx = which(info$tissue == Tissue)
   C = cor(CT.quant, method="spearman")
