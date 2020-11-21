@@ -130,7 +130,7 @@ ggplot( info, aes(PC1, PC2, color=subject, shape=tissue)) + geom_point() + theme
 
 ### Compare similarity between samples from same or different donors for each brain region
 ```{r, within.between, fig.width=12, fig.height=6}
-figList = lapply( unique(info$tissue), function(Tissue){
+figList = lapply( sort(unique(info$tissue)), function(Tissue){
   idx = which(info$tissue == Tissue)
   C = cor(CT.quant, method="spearman")
   dsgn = model.matrix(~0+subject, info[idx,])
@@ -167,8 +167,8 @@ ggplot(df_melt, aes(subject, value, color=covid)) + geom_point() + theme_bw() + 
 ### Variance partition for the entire dataset
 
 ```{r CT.vp}
-# form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue)
-form = ~ (1|pid) + (1|subject) + (1|covid) + (covid|tissue) + (1|Biosample)
+# form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue) 
+form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue) + (1|Biosample)
 
 vp = fitExtractVarPartModel( CT.quant, form, info)   
 
@@ -197,7 +197,8 @@ plot_grid(plotlist = figList, ncol=3)
 ```{r per.tissue.dream, fig.width=12}
 form = ~ (1|pid) + (1|subject) + covid + (1|Biosample)
 
-fitList = lapply( unique(info$tissue), function(Tissue){
+tissues = sort(unique(info$tissue))
+fitList = lapply( tissues, function(Tissue){
 
   idx = which(info$tissue == Tissue)
  
@@ -205,10 +206,10 @@ fitList = lapply( unique(info$tissue), function(Tissue){
 
   dream( cellFrac, form, info[idx,]) 
 })
-names(fitList) = unique(info$tissue)
+names(fitList) = tissues
 
 
-tabList = lapply( unique(info$tissue), function(Tissue){
+tabList = lapply( tissues, function(Tissue){
 
   fit = fitList[[Tissue]]
 
