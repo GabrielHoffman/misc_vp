@@ -121,6 +121,7 @@ plot(hcl)
 ```{r pca, fig.width=12, fig.height=6}
 dcmp = prcomp( t(CT.quant) )
 info = cbind(info, dcmp$x[,1:4])
+rownames(info) = c()
 
 ggplot( info, aes(PC1, PC2, color=subject, shape=tissue)) + geom_point() + theme_bw() + theme(aspect.ratio=1)
 ```
