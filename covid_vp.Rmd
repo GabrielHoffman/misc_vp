@@ -76,6 +76,8 @@ Compute variance partitioning for cell fractions (log ratios) for the whole data
 pseudoFrac = 1e-4
 CT.quant = t(clr(info[,1:15] + pseudoFrac))
 
+colnames(CT.quant) = with(info, paste(subject, pid, tissue))
+
 D = 1 - cor(CT.quant)
 hcl = hclust(as.dist(D), method="ward.D2")
 plot(hcl)
