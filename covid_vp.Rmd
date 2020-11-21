@@ -111,13 +111,11 @@ Compute variance partitioning for cell fractions (log ratios) for the whole data
 # use centered log ratios
 pseudoFrac = 1e-2
 CT.quant = t(clr(info[,1:15] + pseudoFrac))
-colnames(CT.quant) = 1:ncol(CT.quant)
-
-# colnames(CT.quant) = info$Biosample
 
 D = 1 - cor(CT.quant)
 hcl = hclust(as.dist(D), method="ward.D2")
 plot(hcl)
+colnames(CT.quant) = 1:ncol(CT.quant)
 ```
 
 ### PCA
