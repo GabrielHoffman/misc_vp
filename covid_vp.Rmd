@@ -68,7 +68,7 @@ table(info$covid)
 # Variance partitioning
 Compute variance partitioning for cell fractions (log ratios) for the whole dataset and then each tissue.  The `clr` transformation computes the log ration of each cell type fraction compared to a single, centered value.  The macrophage signal is only apparent with this transformation.
 
-```{r CT.vp}
+```{r CT.hclust}
 # use observed cell type frations
 # CT.quant = t(info[,1:15])
 
