@@ -39,6 +39,12 @@ library(limma)
 library(edgeR)
 library(variancePartition)
 
+library(MAST)
+library(edgeR)
+library(org.Hs.eg.db)
+library(limma)
+library(lme4)
+
 })
 
 knitr::opts_chunk$set(
@@ -239,12 +245,6 @@ ggplot(tab, aes(CT, z.std, fill=(FDR < 0.10))) + geom_bar(stat="identity") + fac
 # Gene expression
 
 ```{r define.functions}
-
-library(MAST)
-library(edgeR)
-library(org.Hs.eg.db)
-library(limma)
-library(lme4)
 
 write_csv = function(vec, fn){
   write.table(vec, file = fn, append = FALSE, quote = FALSE, sep = ",",
