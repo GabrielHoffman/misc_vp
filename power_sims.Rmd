@@ -43,7 +43,7 @@ library(pwr)
 })
 
 knitr::opts_chunk$set(
-  echo = FALSE,
+  echo = TRUE,
   warning=FALSE,
   message=FALSE,
   error = FALSE,
