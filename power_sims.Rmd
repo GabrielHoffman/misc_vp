@@ -1,6 +1,6 @@
 ---
 title: "Power for differnetial expression and prediction"
-subtitle: ''
+subtitle: '[code](https://github.com/GabrielHoffman/misc_vp/blob/master/power_sims.Rmd)'
 author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
 date: "Run on `r Sys.time()`"
 documentclass: article
