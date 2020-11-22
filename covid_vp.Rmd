@@ -319,13 +319,14 @@ zlmCond <- zlm(~1, sca)
 
 
 ### SCTransform from SEURAT
+I used sctransform here because it is been widely adapted.   I think I could have used `MAST::zlm`, but it was more trouble than it was worth.
 ```{r sctransform}
 library(sctransform)
 vst_out <- sctransform::vst( t(geneExpr), latent_var = c("log_umi"), return_gene_attr = TRUE, 
     return_cell_attr = TRUE, verbosity = 1)
 ```
 
-Analysis of entire dataset
+Analysis of entire dataset.  In order to make this computationally tractible, I summarize the expression all cells from a given Biosample in a single cell type in terms of the mean.  The reduces the regression from 68K cells to 761 Biosample/celltype combinations.
 ```{r vp.sc}
 metadata$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
 metadata$ID = factor(with(metadata, paste(subject_id, pid, tissue, celltype)))
@@ -354,6 +355,7 @@ plotVarPart( sortCols(vp) )
 ```
 
 # Analysis within each cell type
+You probably want to add an additional analysis within brain region 
 ```{r vp.CT}
 form = ~ (1|pid) + (1|subject_id) + (1|clinical) + (1|tissue)
 
