@@ -317,30 +317,31 @@ vst_out <- sctransform::vst( t(geneExpr), latent_var = c("log_umi"), return_gene
 ```
 
 ```{r vp.sc}
-# form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue) 
+metadata$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
+metadata$ID = factor(with(metadata, paste(subject_id, pid, tissue, celltype)))
+
+geneExpr_mean = lapply( levels(metadata$ID), function(id){
+  idx = which(metadata$ID == id)
+
+  y = t(t(rowMeans(vst_out$y[,idx,drop=FALSE])))
+  colnames(y) = id
+  y
+  })
+geneExpr_mean = do.call(cbind, geneExpr_mean)
+
+metadata_mean = with(metadata, unique(data.frame(subject_id, pid, tissue, celltype, Biosample, ID, clinical, is_covid)))
+
+idx = match( colnames(geneExpr_mean), metadata_mean$ID)
+metadata_mean = metadata_mean[idx,]
+
 form = ~ (1|pid) + (1|subject_id) + (1|clinical) + (1|tissue) + (1|Biosample) + (1|celltype)
 
-metadata$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
-
-vp = fitExtractVarPartModel( vst_out$y, form, metadata, BPPARAM=SerialParam(progressbar=TRUE))   
+vp = fitExtractVarPartModel( geneExpr_mean, form, metadata_mean, BPPARAM=SnowParam(36, progressbar=TRUE))   
 ```
 
-```{r plot.vp}
+```{r plot.vp.summary}
 plotVarPart( sortCols(vp) )
 ```
-
-
-
-
-
-
-zlm and sctransform
-Do they used residuals?
- is VST a residual?
-we want to use sctransform on multi-sample data, 
-  but not remove the biological variation.
-  We want to use the model to estimate the residual variance
-
 
 
 
