@@ -325,6 +325,7 @@ vst_out <- sctransform::vst( t(geneExpr), latent_var = c("log_umi"), return_gene
     return_cell_attr = TRUE, verbosity = 1)
 ```
 
+Analysis of entire dataset
 ```{r vp.sc}
 metadata$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
 metadata$ID = factor(with(metadata, paste(subject_id, pid, tissue, celltype)))
@@ -352,6 +353,7 @@ vp = fitExtractVarPartModel( geneExpr_mean, form, metadata_mean, BPPARAM=SnowPar
 plotVarPart( sortCols(vp) )
 ```
 
+# Analysis within each cell type
 ```{r vp.CT}
 form = ~ (1|pid) + (1|subject_id) + (1|clinical) + (1|tissue)
 
@@ -360,7 +362,7 @@ vpList = lapply( CTs, function(CT){
 
   idx = which(metadata_mean$celltype == CT)
 
-  fitExtractVarPartModel( geneExpr_mean[,idx], form, metadata_mean[idx,], BPPARAM=SnowParam(5, progressbar=TRUE))   
+  fitExtractVarPartModel( geneExpr_mean[,idx], form, metadata_mean[idx,], BPPARAM=SnowParam(15, progressbar=TRUE))   
   })
 names(vpList) = CTs
 ```
