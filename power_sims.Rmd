@@ -92,7 +92,7 @@ df = mclapply( seq(0, .95, length.out=10), function(FVE){
     # simulate features
     X = matrnorm(n1+n2, n_features)
 
-    df = lapply(1:10, function(f){
+    df = lapply(1:30, function(f){
 
       # simulate coefficients for each feature
       beta = rnorm(n_active)
