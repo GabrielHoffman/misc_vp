@@ -83,7 +83,8 @@ n1 = 5000
 # size of testing set
 n2 = 100
 # number of features
-p = 90
+n_features = 1000
+n_active = 90
 
 # simulate over a range of fraction of variance explaind by predictions
 df = mclapply( seq(0, .95, length.out=10), function(FVE){
@@ -91,15 +92,15 @@ df = mclapply( seq(0, .95, length.out=10), function(FVE){
   df = lapply(c(100, 200, 300, 500, 1000), function(n1){
 
     # simulate features
-    X = matrnorm(n1+n2, p)
+    X = matrnorm(n1+n2, n_features)
 
     df = lapply(1:10, function(f){
 
       # simulate coefficients for each feature
-      beta = rnorm(p)
+      beta = rnorm(n_active)
 
       # create response value with no noise
-      eta = X %*% beta
+      eta = X[,1:n_active] %*% beta
 
       # add noise for a given FVE value
       # so that squared correlation between true and observed value is FVE
