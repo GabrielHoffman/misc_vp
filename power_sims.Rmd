@@ -1,5 +1,5 @@
 ---
-title: "COVID and variancePartition"
+title: "Power for differnetial expression and prediction"
 subtitle: ''
 author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
 date: "Run on `r Sys.time()`"
@@ -55,7 +55,7 @@ knitr::opts_chunk$set(
 
 
 
-### Power for differential expression
+### Power for standard differential expression
 
 Cohens d is the effect size scaled by the within group standard deviation
 
@@ -75,7 +75,6 @@ ggplot(res1, aes(delta, power)) + geom_line() + theme_bw() + theme(aspect.ratio=
 
 # Predictive power simulation
 
-our simulated dataset assumes 90 genes following the first paper.
 ```{r sim.prediction}
 # size of testing set
 n2 = 1000
@@ -137,9 +136,17 @@ df = do.call(rbind, df)
 df$n1 = factor(df$n1, sort(unique(df$n1)))
 ```
 
+This simulation assumes that a continuous response metric is generated from `r n_active` active features out of a total of `r n_features` features.  Here I show the rMSE from an independent testing set as 1) the size of the training set increases and 2) the amount of variation in the continuous response metric explained by the active features.  Here I use a LASSO, but the method doesnt matter here.  
+
+The criticism of this approach is 1) we don't know the amount of variation in the response explained by gene expression in the real data and 2) we don't know how much of a decrease in rMSE is need to be "useful" 
+
 ```{r plot.MSE}
 ggplot(df, aes(FVE, rMSE, color=n1)) + theme_bw() + theme(aspect.ratio=1) + xlab("Fraction of variance explained by predictors") + geom_errorbar(aes(x=FVE, ymin=rMSE - se, ymax=rMSE+se), width=0) + geom_point() + xlim(0, 1)  + geom_smooth(method="loess", se=FALSE) + ylim(0, NA) + scale_color_discrete(name=bquote(N[training]))
 ```
+
+
+
+
 
 With a continuous outcome, the root mean squared error (rMSE) is the appropriate metric of prediction accuracy.
 
