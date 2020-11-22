@@ -13,12 +13,19 @@ output:
 
 <!---
 
+# How to run
+############
+
+# cd to directory with covid_vp.Rmd 
 cd /hpc/users/hoffmg01/work/misc_vp
-# rm -rf molec_profiling_cache/
+
+# set up environment
 ml git pandoc 
 git pull
 R
 
+# in R, pull the latest version (I edit on my laptop and push to GitHub)
+# then run the script to generate and HTML page
 system("git pull"); rmarkdown::render("covid_vp.Rmd")
 
 
@@ -53,6 +60,7 @@ knitr::opts_chunk$set(
   message=FALSE,
   error = FALSE,
   tidy = FALSE,
+   dev = c("png", "pdf"),
   cache.lazy = FALSE,
   cache = TRUE)
 ```
@@ -137,6 +145,7 @@ ggplot( info, aes(PC1, PC2, color=subject, shape=tissue)) + geom_point() + theme
 ```
 
 ### Compare similarity between samples from same or different donors for each brain region
+It seems interesting that there is so much variation *across* donors in the choroidpleus compared to PFC.  Is that biological or technical?
 ```{r, within.between, fig.width=12, fig.height=6}
 figList = lapply( sort(unique(info$tissue)), function(Tissue){
   idx = which(info$tissue == Tissue)
@@ -356,7 +365,7 @@ vpList = lapply( CTs, function(CT){
 names(vpList) = CTs
 ```
 
-```{r plot.vp.CT.summary, fig.width=12, fig.height=20}
+```{r plot.vp.CT.summary, fig.width=8, fig.height=20}
 figList = lapply( names(vpList), function(ID){
   vp = vpList[[ID]]
   plotVarPart( sortCols(vp) ) + ggtitle( ID)
