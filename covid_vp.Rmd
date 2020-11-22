@@ -316,8 +316,20 @@ vst_out <- sctransform::vst( t(geneExpr), latent_var = c("log_umi"), return_gene
     return_cell_attr = TRUE, verbosity = 1)
 ```
 
+```{r vp.sc}
 # form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue) 
-# form = ~ (1|pid) + (1|subject) + (1|covid) + (1|tissue) + (1|Biosample)
+form = ~ (1|pid) + (1|subject_id) + (1|clinical) + (1|tissue) + (1|Biosample) + (1|celltype)
+
+metadata$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
+
+vp = fitExtractVarPartModel( vst_out$y, form, metadata, BPPARAM=SerialParam(1))   
+```
+
+```{r plot.vp}
+plotVarPart( sortCols(vp) )
+```
+
+
 
 
 
