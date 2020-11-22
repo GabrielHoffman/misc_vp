@@ -137,5 +137,5 @@ df$n1 = factor(df$n1, sort(unique(df$n1)))
 ```
 
 ```{r plot.MSE}
-ggplot(df, aes(FVE, rMSE, color=n1)) + theme_bw() + theme(aspect.ratio=1) + xlab("Fraction of variance explained by predictors") + geom_errorbar(aes(x=FVE, ymin=rMSE - se, ymax=rMSE+se), width=0) + geom_point() + xlim(0, 1)  + geom_smooth(method="loess", se=FALSE) + ylim(0, NA)
+ggplot(df, aes(FVE, rMSE, color=n1)) + theme_bw() + theme(aspect.ratio=1) + xlab("Fraction of variance explained by predictors") + geom_errorbar(aes(x=FVE, ymin=rMSE - se, ymax=rMSE+se), width=0) + geom_point() + xlim(0, 1)  + geom_smooth(method="loess", se=FALSE) + ylim(0, NA) + scale_color_discrete(name=bquote(N[training]))
 ```
