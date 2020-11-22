@@ -303,13 +303,13 @@ colData(sca)$is_covid <- metadata$is_covid
 colData(sca)$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
 ```
 
+```{r fit.MAST, eval=FALSE}
 # Get MAST/zlm fit.
-```{r fit.MAST}
 zlmCond <- zlm(~1, sca)    
 ```
 
 
-# SCTransform from SEURAT
+### SCTransform from SEURAT
 ```{r sctransform}
 library(sctransform)
 vst_out <- sctransform::vst( t(geneExpr), latent_var = c("log_umi"), return_gene_attr = TRUE, 
