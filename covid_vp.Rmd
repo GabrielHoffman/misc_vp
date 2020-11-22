@@ -47,6 +47,7 @@ knitr::opts_chunk$set(
   message=FALSE,
   error = FALSE,
   tidy = FALSE,
+  cache.lazy = FALSE,
   cache = TRUE)
 ```
 
@@ -245,10 +246,12 @@ library(org.Hs.eg.db)
 library(limma)
 library(lme4)
 
-write_csv = function(vec, fn){write.table(vec, file = fn, append = FALSE, quote = FALSE, sep = ",",
+write_csv = function(vec, fn){
+  write.table(vec, file = fn, append = FALSE, quote = FALSE, sep = ",",
                 eol = "\n", na = "NA", dec = ".", row.names = TRUE,
                 col.names = TRUE, qmethod = c("escape", "double"),
-                fileEncoding = "")}
+                fileEncoding = "")
+}
 
 prepare_sca = function(expr){
     ncells = nrow(expr)
@@ -319,7 +322,12 @@ vst_out <- sctransform::vst( t(geneExpr), latent_var = c("log_umi"), return_gene
 
 
 
-
+zlm and sctransform
+Do they used residuals?
+ is VST a residual?
+we want to use sctransform on multi-sample data, 
+  but not remove the biological variation.
+  We want to use the model to estimate the residual variance
 
 
 
