@@ -74,13 +74,16 @@ res1 = do.call("rbind", res1)
 ggplot(res1, aes(delta, power)) + geom_line() + theme_bw() + theme(aspect.ratio=1) + ylim(0,1) + xlab("Cohen's d")
 ```
 
+# Predictive power simulation
+
+
 ```{r sim.prediction}
 # size of training set
 n1 = 5000
 # size of testing set
 n2 = 100
 # number of features
-p = 100
+p = 1000
 
 # simulate over a range of fraction of variance explaind by predictions
 df = mclapply( seq(0, .95, length.out=10), function(FVE){
