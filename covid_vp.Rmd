@@ -256,7 +256,7 @@ form = ~ covid*tissue + (1|subject) + (1|Biosample)
 Y = data.frame(CT.quant, check.names=FALSE)
 fit = dream( Y, form, info, BPPARAM=SerialParam()) 
   
-topTable(fit, coef="covid1") %>% kable
+topTable(fit, coef="covid1") %>% kable("html")
 ```
 
 ```{r, cache=FALSE}
