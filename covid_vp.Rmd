@@ -259,7 +259,7 @@ fit = dream( Y, form, info, BPPARAM=SerialParam())
 topTable(fit, coef="covid1") %>% kable
 ```
 
-```{r}
+```{r, cache=FALSE}
 knitr::knit_exit()
 ```
 
