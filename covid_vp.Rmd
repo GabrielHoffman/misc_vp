@@ -53,6 +53,7 @@ library(org.Hs.eg.db)
 library(limma)
 library(lme4)
 
+library(zenith)
 })
 
 knitr::opts_chunk$set(
@@ -318,11 +319,6 @@ colData(sca)$is_covid <- metadata$is_covid
 colData(sca)$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
 ```
 
-```{r fit.MAST, eval=FALSE}
-# Get MAST/zlm fit.
-zlmCond <- zlm(~1, sca)    
-```
-
 
 ### SCTransform from SEURAT
 I used sctransform here because it is been widely adapted.   I think I could have used `MAST::zlm`, but it was more trouble than it was worth.
@@ -387,18 +383,85 @@ plot_grid(plotlist=figList, ncol=2)
 
 ```{r aggregate}
 
-geneCounts = lapply( levels(metadata$ID), function(id){
-  idx = which(metadata$ID == id)
+aggregate_counts = function( geneExpr, metadata){
 
-  y = t(t(rowMeans(vst_out$y[,idx,drop=FALSE])))
-  colnames(y) = id
-  y
+  # aggrecate gene counts
+  geneCounts = lapply( levels(metadata$ID), function(id){
+
+      idx = which(metadata$ID == id)
+
+      colSums(geneExpr[idx,,drop=FALSE])
+    })
+  geneCounts = do.call(cbind, geneCounts)
+  colnames(geneCounts) = levels(metadata$ID)
+
+  # simplify metadata 
+  md2 = lapply( levels(metadata$ID), function(id){
+
+      unique(metadata[metadata$ID == id,c("subject_id", "ID", "Biosample", "clinical", "is_covid", "pid", "tissue", "celltype")])
   })
+  md2 = do.call(rbind, md2)
+
+  list( geneCounts  = geneCounts,
+        metadata    = md2) 
+}
+
+res = aggregate_counts( geneExpr, metadata)
+
+
+dge = DGEList( res$geneCounts, samples=res$metadata )
+
+dge = calcNormFactors(dge)
+
+dsgn = model.matrix(~ tissue + celltype + subject_id, dge$samples )
+vobj = voom(dge, dsgn, plot=TRUE)
+
+
+form = ~ tissue*celltype*is_covid + (1|subject_id) + (1|Biosample)
+
+fit = dream(vobj, form, dge$samples, BPPARAM=SnowParam(3, progressbar=TRUE))
+```
 
 
 
 
-geneCounts = do.call(cbind, geneCounts)
+<!---
+
+for(CT in unique(vSMC$celltype)){
+
+  idx = which(res$metadata$celltype == CT)
+
+  dge = DGEList( res$geneCounts[,idx], samples=res$metadata[idx,] )
+
+  dge = calcNormFactors(dge)
+
+  dsgn = model.matrix(~ subject_id, dge$samples )
+  vobj = voom(dge, dsgn, plot=TRUE)
+
+
+
+--->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
