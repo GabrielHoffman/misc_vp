@@ -315,7 +315,7 @@ colData(sca)$subject_id <- factor(metadata$subject_id)
 colData(sca)$tissue <- factor(metadata$tissue)
 colData(sca)$pid <- factor(metadata$pid)  
 colData(sca)$celltype <- factor(metadata$celltype)
-colData(sca)$is_covid <- metadata$is_covid  
+colData(sca)$is_covid <- factor(metadata$is_covid)
 colData(sca)$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
 ```
 
