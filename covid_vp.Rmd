@@ -249,7 +249,7 @@ tab$FDR = p.adjust(tab$P.Value, "fdr")
 ggplot(tab, aes(CT, z.std, fill=(FDR < 0.10))) + geom_bar(stat="identity") + facet_wrap(~Tissue) + theme_bw() + theme(aspect.ratio=1) + coord_flip() + scale_fill_manual(values=c("black", "red"))
 ```
 
-```{r joint.model}
+```{r joint.model, results="asis"}
 # test combined covid:tissue
 form = ~ covid*tissue + (1|subject) + (1|Biosample)
 
@@ -297,7 +297,6 @@ get_hurdel_result = function(summaryDt){
     to.return = to.return[, c(2, 3)]
     
     to.return
-
 }
 ```
 
@@ -388,7 +387,22 @@ figList = lapply( names(vpList), function(ID){
 plot_grid(plotlist=figList, ncol=2)
 ```
 
+# Count aggregation
 
+```{r aggregate}
+
+geneCounts = lapply( levels(metadata$ID), function(id){
+  idx = which(metadata$ID == id)
+
+  y = t(t(rowMeans(vst_out$y[,idx,drop=FALSE])))
+  colnames(y) = id
+  y
+  })
+
+
+
+
+geneCounts = do.call(cbind, geneCounts)
 
 
 
