@@ -428,7 +428,7 @@ vp = fitExtractVarPartModel(vobj, form, dge$samples, BPPARAM=SnowParam(3, progre
 plotVarPart( sortCols(vp) )
 ```
 
-
+## dream
 ```{r dream.aggregate}
 form = ~ tissue*celltype*is_covid + (1|subject_id) + (1|Biosample)
 
