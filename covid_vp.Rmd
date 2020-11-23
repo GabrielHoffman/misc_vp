@@ -259,13 +259,8 @@ fit = dream( Y, form, info, BPPARAM=SerialParam())
 topTable(fit, coef="covid1") %>% kable() %>% kable_styling(full_width=FALSE)
 ```
 
-```{r, cache=FALSE}
-knitr::knit_exit()
-```
-
 
 # Gene expression
-
 ```{r define.functions}
 
 write_csv = function(vec, fn){
@@ -312,7 +307,6 @@ geneExpr = geneExpr[,-1]
 geneExpr = as.matrix(geneExpr)
 
 sca = prepare_sca( geneExpr)
-
 
 metadata = fread('/sc/arion/projects/CommonMind/roussp01a/COVID_SC/FrozenBrain/results/metadata.csv')
 
