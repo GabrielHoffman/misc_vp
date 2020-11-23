@@ -407,6 +407,7 @@ aggregate_counts = function( geneExpr, metadata){
         metadata    = md2) 
 }
 
+metadata$is_covid = factor(metadata$is_covid)
 res = aggregate_counts( geneExpr, metadata)
 
 
@@ -435,31 +436,6 @@ form = ~ tissue*celltype*is_covid + (1|subject_id) + (1|Biosample)
 
 fit = dream(vobj, form, dge$samples, BPPARAM=SnowParam(3, progressbar=TRUE))
 ```
-
-
-
-
-<!---
-
-for(CT in unique(vSMC$celltype)){
-
-  idx = which(res$metadata$celltype == CT)
-
-  dge = DGEList( res$geneCounts[,idx], samples=res$metadata[idx,] )
-
-  dge = calcNormFactors(dge)
-
-  dsgn = model.matrix(~ subject_id, dge$samples )
-  vobj = voom(dge, dsgn, plot=TRUE)
-
-
-
---->
-
-
-
-
-
 
 
 
