@@ -39,6 +39,7 @@ library(data.table)
 library(cowplot)
 library(kableExtra)
 library(knitr)
+library(dplyr)
 library(compositions)
 library(BiocParallel)
 
@@ -246,6 +247,16 @@ tab = do.call(rbind, tabList)
 tab$FDR = p.adjust(tab$P.Value, "fdr")
 
 ggplot(tab, aes(CT, z.std, fill=(FDR < 0.10))) + geom_bar(stat="identity") + facet_wrap(~Tissue) + theme_bw() + theme(aspect.ratio=1) + coord_flip() + scale_fill_manual(values=c("black", "red"))
+```
+
+```{r joint.model}
+# test combined covid:tissue
+form = ~ covid*tissue + (1|subject) + (1|Biosample)
+
+Y = data.frame(CT.quant, check.names=FALSE)
+fit = dream( Y, form, info, BPPARAM=SerialParam()) 
+
+topTable(fit, coef="covid1") %>% kable
 ```
 
 
