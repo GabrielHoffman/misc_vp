@@ -259,7 +259,9 @@ fit = dream( Y, form, info, BPPARAM=SerialParam())
 topTable(fit, coef="covid1") %>% kable
 ```
 
-
+```{r}
+knitr::knit_exit()
+```
 
 
 # Gene expression
