@@ -415,8 +415,21 @@ dge = calcNormFactors(dge)
 
 dsgn = model.matrix(~ tissue + celltype + subject_id, dge$samples )
 vobj = voom(dge, dsgn, plot=TRUE)
+```
+
+## variancePartition
+```{r vp.aggregate}
+form = ~ (1|tissue) + (1|celltype) + (1|tissue:celltype) + (1|is_covid) + (1|subject_id) + (1|Biosample)
+
+vp = fitExtractVarPartModel(vobj, form, dge$samples, BPPARAM=SnowParam(3, progressbar=TRUE))
+```
+
+```{r plot.vp.summary.aggregate}
+plotVarPart( sortCols(vp) )
+```
 
 
+```{r dream.aggregate}
 form = ~ tissue*celltype*is_covid + (1|subject_id) + (1|Biosample)
 
 fit = dream(vobj, form, dge$samples, BPPARAM=SnowParam(3, progressbar=TRUE))
