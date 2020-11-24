@@ -433,7 +433,7 @@ plotVarPart( sortCols(vp) )
 ```
 
 ## within cell type
-```{r vp.aggregate}
+```{r vp.aggregate.within}
 vpList = lapply( levels(dge$samples$celltype), function(CT){
 
   idx = which(dge$samples$celltype == CT)
