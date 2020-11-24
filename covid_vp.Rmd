@@ -535,6 +535,7 @@ go.gs = get_GeneOntology(to='SYMBOL')
 
 gs.kegg = getGenesets(org = "hsa", db = "kegg", gene.id.type = 'SYMBOL', 
     return.type = "GeneSetCollection")
+names(gs.kegg) = sapply(gs.kegg, function(x) paste(setName(x), description(x)))
 
 # res = showAvailableCollections(org="hsa", "enrichr")
 gs.COVID19 = getGenesets(org = "hsa", db = "enrichr", gene.id.type = 'SYMBOL', 
@@ -614,12 +615,6 @@ hist(df2$PValue)
 df2$FDR = p.adjust(df2$PValue)
 1 - qvalue(df2$PValue)$pi0
 ```
-
-
-
-
-
-
 
 
 
