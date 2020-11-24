@@ -250,6 +250,7 @@ tab$FDR = p.adjust(tab$P.Value, "fdr")
 ggplot(tab, aes(CT, z.std, fill=(FDR < 0.10))) + geom_bar(stat="identity") + facet_wrap(~Tissue) + theme_bw() + theme(aspect.ratio=1) + coord_flip() + scale_fill_manual(values=c("black", "red"))
 ```
 
+Here combining across tissue identifies MΦ and Sc as significantly different between 
 ```{r joint.model, results="asis"}
 # test combined covid:tissue
 form = ~ covid*tissue + (1|subject) + (1|Biosample)
@@ -451,6 +452,7 @@ plotVarPart( sortCols(vp) )
 ```
 
 ## within cell type
+Notice the fraction of variance explaind by COVID in MΦ. 
 ```{r vp.aggregate.within}
 vpList = lapply( levels(dge$samples$celltype), function(CT){
 
@@ -574,7 +576,9 @@ resGSA = do.call(rbind, resList)
 
 While none of these are study-wide significant, zenith is conservative because it controls the false positive rate.  Most other GSEA tests give a lot of false positives under the null.  We only have 9 subjects, so this result is pretty remarkable.  
 
-I included GO, KEGG, and 205 COVID-related gene sets from [Avi Ma'ayn's group](https://maayanlab.cloud/covid19/#nav-genes-table).  This figure shows all genes sets with p< 4e-4 in any tissue or cell type.
+Importantly, zenith uses the entire spectrum of test statistics to perform gne gene set analysis; it does not need significant differentially expressioned genes.
+
+I included GO, KEGG, and 205 COVID-related gene sets from [Avi Ma'ayn's group](https://maayanlab.cloud/covid19/#nav-genes-table).  This dataset is updated regularly, this is an older freeze. This figure shows all genes sets with p< 5e-4 in any tissue or cell type.  This is an arbitrary cutoff.  
 ```{r zenith.gene.sets, fig.width=12, fig.height=12}
 # download.file("https://maayanlab.cloud/covid19/genesets.gmt", "./genesets.gmt")
 # gs.COVID19.v2 = getGenesets("./genesets.gmt", return.type = "GeneSetCollection")
