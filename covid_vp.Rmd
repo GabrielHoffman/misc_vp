@@ -362,6 +362,24 @@ vp = fitExtractVarPartModel( geneExpr_mean, form, metadata_mean, BPPARAM=SnowPar
 plotVarPart( sortCols(vp) )
 ```
 
+### macrophages
+```{r view.macrophages}
+library(Rtsne)
+idx = which(metadata$celltype == 'MΦ')
+
+info = metadata[idx,]
+Y = vst_out$y[,idx]
+
+dcmp = prcomp(t(Y))
+
+res = Rtsne( dcmp$x[,1:20] )
+colnames(res$Y) = c("tSNE1", "tSNE2")
+info = cbind(info, res$Y)
+
+ggplot(info, aes(tSNE1, tSNE2, color=subject_id, shape=is_covid)) + geom_point() + theme_bw() + theme(aspect.ratio=1)
+```
+
+
 # Analysis within each cell type
 You probably want to add an additional analysis within brain region 
 ```{r vp.CT}
@@ -480,16 +498,32 @@ names(fitList) = levels(dge$samples$celltype)
 ```
 
 ```{r de.testing}
+resTab = lapply( names(fitList), function(CT){
 
-tab = topTable(fit, coef="choroidpleus", number=Inf)
+  fit = fitList[[CT]]
 
-sum(tab$adj.P.Val < 0.05)
+  tabList = lapply( colnames(coef(fit))[1:3], function(tissue){
 
+    tab = topTable(fit, coef=tissue, number=Inf)
+   
+    data.frame( Gene      = rownames(tab),
+                Tissue    = tissue, 
+                CellType  = CT, 
+                logFC     = tab$logFC,
+                P.Value   = tab$P.Value,
+                z.std     = tab$z.std)
+  })
+  do.call(rbind, tabList)
+})
+resTab = data.table(do.call(rbind, resTab))
 
+countDE = resTab[,data.frame(nDE = sum(p.adjust(P.Value, "fdr") < 0.05)),by=c('Tissue', 'CellType')]
+
+ymax = max(countDE$nDE)*1.05
+ggplot(countDE, aes(CellType, nDE, fill=Tissue)) + geom_bar(stat="identity", position = "dodge") + theme_bw() + theme(aspect.ratio=2, plot.title = element_text(hjust = 0.5)) + ggtitle("Number of DE genes") + coord_flip() + scale_y_continuous(expand=c(0,0), limits=c(0, ymax))
 ```
 
 ```{r zenith.gsa}
-library(EnrichmentBrowser)
 library(GSEABase)
 library(zenith)
 
@@ -499,21 +533,33 @@ go.gs = get_GeneOntology(to='SYMBOL')
 # convert from GeneSetCollection to list used by camera and zenith
 geneSets_GO = recodeToList( go.gs )
 
-# Map from Ensembl genes in geneSets_GO to 
-# from trimmed Ensembl names from RNA-seq data 
-index = ids2indices( geneSets_GO, rownames(tab))
-   
-# filter by size of gene set
-n_genes_in = 20
-index = index[sapply(index, length) >= n_genes_in]
+resList = lapply( names(fitList), function(CT){
 
-# Run zenith.  
-# Note that zenith allows analysis of any dream model and 
-# any coefficient or contrast defined in the model. 
-res_zenith = zenith( fit, "choroidpleus", index)
+  fit = fitList[[CT]]
 
-res_zenith[1:20,] %>% kable %>% kable_styling(full_width = FALSE) 
+  resList = lapply( colnames(coef(fit))[1:3], function(tissue){
+    
+    # Map from Ensembl genes in geneSets_GO to 
+    # from trimmed Ensembl names from RNA-seq data 
+    index = ids2indices( geneSets_GO, rownames(fit))
+       
+    # filter by size of gene set
+    n_genes_in = 20
+    index = index[sapply(index, length) >= n_genes_in]
 
+    # Run zenith.  
+    # Note that zenith allows analysis of any dream model and 
+    # any coefficient or contrast defined in the model. 
+    res = zenith( fit, coef=tissue, index[1:10])
+
+    data.table( CellType  = CT, 
+                Tissue    = tissue,
+                Geneset   = rownames(res), 
+                res)
+  })
+  do.call(rbind, resList)
+})
+resGSA = do.call(rbind, resList)
 ```
 
 
