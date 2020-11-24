@@ -572,29 +572,26 @@ resList = lapply( names(fitList), function(CT){
 resGSA = do.call(rbind, resList)
 ```
 
-```{r zenith.gene.sets}
+```{r zenith.gene.sets, fig.width=12, fig.height=12}
+
 df_gs = resGSA[,data.frame(Geneset=Geneset[PValue<5e-4]),by=c('CellType', 'Tissue')]
 
-
-df = resGSA[(Geneset %in% df_gs$Geneset),] # & (Tissue=="PFC")
+df = resGSA[(Geneset %in% df_gs$Geneset),] 
 df$zscore = with(df, qnorm(PValue, lower.tail=FALSE)*sign(delta))
 
-# M = matrix(df$zscore, nrow = length(unique(df$CellType)), 
-#   dimnames=list(unique(df$CellType), unique(df$Geneset)), byrow=TRUE)
+M = matrix(df$zscore, nrow = length(unique(df$Geneset)), 
+  dimnames=list(unique(df$Geneset), NULL), byrow=TRUE)
 
-# hcl = heatmap(M, keep.dendro=TRUE)
+hcl = hclust(dist(M), method="ward.D2")
+ hcl$labels[hcl$order]
 
-
-# hcl = hclust(dist(t(M)))
-#  hcl$labels
-
-# df$Geneset = factor(df$Geneset, hcl$labels)#[hcl$order])
+df$Geneset = factor(df$Geneset, hcl$labels[hcl$order])
 
 ratio = length(unique(df$Geneset)) / length(unique(df$CellType))
 
 ylim = max(abs(df$zscore))
 
-ggplot(df, aes(CellType, Geneset, fill=zscore)) + geom_tile() + theme(aspect.ratio=ratio, axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + scale_fill_gradient2(name = "Z-score", low = "blue", mid="white", high="red", limits=c(-ylim, ylim)) + facet_wrap(~Tissue)
+ggplot(df, aes(CellType, Geneset, fill=zscore)) + geom_tile() + theme(aspect.ratio=ratio, axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position="bottom") + scale_fill_gradient2(name = "Z-score", low = "blue", mid="white", high="red", limits=c(-ylim, ylim)) + facet_wrap(~Tissue)
 ```
 
 
