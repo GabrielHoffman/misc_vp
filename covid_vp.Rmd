@@ -572,18 +572,30 @@ resList = lapply( names(fitList), function(CT){
 resGSA = do.call(rbind, resList)
 ```
 
+```{r zenith.gene.sets}
+df_gs = resGSA[,data.frame(Geneset=Geneset[PValue<5e-4]),by=c('CellType', 'Tissue')]
 
 
+df = resGSA[(Geneset %in% df_gs$Geneset),] # & (Tissue=="PFC")
+df$zscore = with(df, qnorm(PValue, lower.tail=FALSE)*sign(delta))
+
+# M = matrix(df$zscore, nrow = length(unique(df$CellType)), 
+#   dimnames=list(unique(df$CellType), unique(df$Geneset)), byrow=TRUE)
+
+# hcl = heatmap(M, keep.dendro=TRUE)
 
 
+# hcl = hclust(dist(t(M)))
+#  hcl$labels
 
+# df$Geneset = factor(df$Geneset, hcl$labels)#[hcl$order])
 
+ratio = length(unique(df$Geneset)) / length(unique(df$CellType))
 
+ylim = max(abs(df$zscore))
 
-
-
-
-
+ggplot(df, aes(CellType, Geneset, fill=zscore)) + geom_tile() + theme(aspect.ratio=ratio, axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + scale_fill_gradient2(name = "Z-score", low = "blue", mid="white", high="red", limits=c(-ylim, ylim)) + facet_wrap(~Tissue)
+```
 
 
 
