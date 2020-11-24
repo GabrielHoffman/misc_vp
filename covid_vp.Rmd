@@ -583,7 +583,6 @@ M = matrix(df$zscore, nrow = length(unique(df$Geneset)),
   dimnames=list(unique(df$Geneset), NULL), byrow=TRUE)
 
 hcl = hclust(dist(M), method="ward.D2")
- hcl$labels[hcl$order]
 
 df$Geneset = factor(df$Geneset, hcl$labels[hcl$order])
 
