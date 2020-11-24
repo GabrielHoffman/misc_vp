@@ -311,13 +311,21 @@ sca = prepare_sca( geneExpr)
 
 metadata = fread('/sc/arion/projects/CommonMind/roussp01a/COVID_SC/FrozenBrain/results/metadata.csv')
 metadata$is_covid = factor(metadata$is_covid)
+metadata$subject_id = factor(metadata$subject_id)
+metadata$tissue = factor(metadata$tissue)
+metadata$pid = factor(metadata$pid)
+metadata$celltype = factor(metadata$celltype)
+metadata$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
+metadata$aggr_unit = factor(with(metadata, paste(subject_id, pid, tissue,  celltype))) # tissue_id
 
-colData(sca)$subject_id <- factor(metadata$subject_id)
-colData(sca)$tissue <- factor(metadata$tissue)
-colData(sca)$pid <- factor(metadata$pid)  
-colData(sca)$celltype <- factor(metadata$celltype)
+metadata$ID = factor(with(metadata, paste(subject_id, pid, tissue, celltype)))
+
+colData(sca)$subject_id <- metadata$subject_id
+colData(sca)$tissue <- metadata$tissue
+colData(sca)$pid <- metadata$pid
+colData(sca)$celltype <- metadata$celltype
 colData(sca)$is_covid <- metadata$is_covid
-colData(sca)$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
+colData(sca)$Biosample = metadata$Biosample
 ```
 
 
@@ -331,9 +339,6 @@ vst_out <- sctransform::vst( t(geneExpr), latent_var = c("log_umi"), return_gene
 
 Analysis of entire dataset.  In order to make this computationally tractible, I summarize the expression all cells from a given Biosample in a single cell type in terms of the mean.  The reduces the regression from 68K cells to 761 Biosample/celltype combinations.
 ```{r vp.sc}
-metadata$Biosample = factor(with(metadata, paste(subject_id, pid, tissue)))
-metadata$ID = factor(with(metadata, paste(subject_id, pid, tissue, celltype)))
-
 geneExpr_mean = lapply( levels(metadata$ID), function(id){
   idx = which(metadata$ID == id)
 
@@ -387,19 +392,19 @@ plot_grid(plotlist=figList, ncol=2)
 aggregate_counts = function( geneExpr, metadata){
 
   # aggrecate gene counts
-  geneCounts = lapply( levels(metadata$ID), function(id){
+  geneCounts = lapply( levels(metadata$aggr_unit), function(id){
 
-      idx = which(metadata$ID == id)
+      idx = which(metadata$aggr_unit == id)
 
       colSums(geneExpr[idx,,drop=FALSE])
     })
   geneCounts = do.call(cbind, geneCounts)
-  colnames(geneCounts) = levels(metadata$ID)
+  colnames(geneCounts) = levels(metadata$aggr_unit)
 
   # simplify metadata 
-  md2 = lapply( levels(metadata$ID), function(id){
+  md2 = lapply( levels(metadata$aggr_unit), function(id){
 
-      unique(metadata[metadata$ID == id,c("subject_id", "ID", "Biosample", "clinical", "is_covid", "pid", "tissue", "celltype")])
+      unique(metadata[metadata$aggr_unit == id,c("subject_id", "Biosample", "clinical", "is_covid", "pid", "tissue", "celltype")])
   })
   md2 = do.call(rbind, md2)
 
@@ -407,23 +412,20 @@ aggregate_counts = function( geneExpr, metadata){
         metadata    = md2) 
 }
 
-metadata$is_covid = factor(metadata$is_covid)
 res = aggregate_counts( geneExpr, metadata)
 
-
 dge = DGEList( res$geneCounts, samples=res$metadata )
-
 dge = calcNormFactors(dge)
 
-dsgn = model.matrix(~ tissue + celltype + subject_id, dge$samples )
-vobj = voom(dge, dsgn, plot=TRUE)
+form = ~ (1|tissue) + (1|celltype) + (1|subject_id)
+vobj = voomWithDreamWeights(dge, form, dge$samples, plot=TRUE, BPPARAM=SnowParam(24, progressbar=TRUE))
 ```
 
 ## variancePartition
 ```{r vp.aggregate}
-form = ~ (1|tissue) + (1|celltype) + (1|tissue:celltype) + (1|is_covid) + (1|subject_id) + (1|Biosample)
+form = ~ (1|tissue) + (1|celltype) + (1|is_covid) + (1|subject_id) + (1|pid)
 
-vp = fitExtractVarPartModel(vobj, form, dge$samples, BPPARAM=SnowParam(3, progressbar=TRUE))
+vp = fitExtractVarPartModel(vobj, form, dge$samples, BPPARAM=SnowParam(24, progressbar=TRUE))
 ```
 
 ```{r plot.vp.summary.aggregate}
@@ -432,12 +434,66 @@ plotVarPart( sortCols(vp) )
 
 ## dream
 ```{r dream.aggregate}
-form = ~ tissue*celltype*is_covid + (1|subject_id) + (1|Biosample)
+fitList = lapply( levels(dge$samples$celltype), function(CT){
 
-fit = dream(vobj, form, dge$samples, BPPARAM=SnowParam(3, progressbar=TRUE))
+  idx = which(dge$samples$celltype == CT)
+
+  form = ~ 0 + is_covid:tissue + (1|tissue) + (1|subject_id) 
+  
+  L1  = getContrast(vobj[,idx], form, dge$samples[idx,], 
+    c("is_covid1:tissuePFC",'is_covid0:tissuePFC'))
+
+  L2  = getContrast(vobj[,idx], form, dge$samples[idx,], 
+    c("is_covid1:tissuemedulla",'is_covid0:tissuemedulla'))
+
+  L3  = getContrast(vobj[,idx], form, dge$samples[idx,], 
+    c("is_covid1:tissuechoroidplexus",'is_covid0:tissuechoroidplexus'))
+
+  L = data.frame(PFC = L1, medulla = L2, choroidpleus = L3)
+
+  fit = dream(vobj[,idx], form, dge$samples[idx,], L = L, BPPARAM=SnowParam(24, progressbar=TRUE))
+
+  fit
+})
+names(fitList) = levels(dge$samples$celltype)
 ```
 
+```{r de.testing}
 
+tab = topTable(fit, coef="choroidpleus", number=Inf)
+
+sum(tab$adj.P.Val < 0.05)
+
+
+```
+
+```{r zenith.gsa}
+library(EnrichmentBrowser)
+library(GSEABase)
+library(zenith)
+
+# Load Gene Ontology database 
+go.gs = get_GeneOntology(to='SYMBOL')
+   
+# convert from GeneSetCollection to list used by camera and zenith
+geneSets_GO = recodeToList( go.gs )
+
+# Map from Ensembl genes in geneSets_GO to 
+# from trimmed Ensembl names from RNA-seq data 
+index = ids2indices( geneSets_GO, rownames(tab))
+   
+# filter by size of gene set
+n_genes_in = 20
+index = index[sapply(index, length) >= n_genes_in]
+
+# Run zenith.  
+# Note that zenith allows analysis of any dream model and 
+# any coefficient or contrast defined in the model. 
+res_zenith = zenith( fit, "choroidpleus", index)
+
+res_zenith[1:20,] %>% kable %>% kable_styling(full_width = FALSE) 
+
+```
 
 
 
