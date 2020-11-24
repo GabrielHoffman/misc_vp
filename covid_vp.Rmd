@@ -538,9 +538,6 @@ gs.kegg = getGenesets(org = "hsa", db = "kegg", gene.id.type = 'SYMBOL',
 gs.COVID19 = getGenesets(org = "hsa", db = "enrichr", gene.id.type = 'SYMBOL', 
     return.type = "GeneSetCollection", lib='COVID-19_Related_Gene_Sets')
 
-# download.file("https://maayanlab.cloud/covid19/genesets.gmt", "./genesets.gmt")
-# a = getGenesets("./genesets.gmt", return.type = "GeneSetCollection")
-
 gs.combined = GeneSetCollection(c(go.gs, gs.kegg, gs.COVID19))
    
 # convert from GeneSetCollection to list used by camera and zenith
@@ -579,6 +576,8 @@ While none of these are study-wide significant, zenith is conservative because i
 
 I included GO, KEGG, and 205 COVID-related gene sets from [Avi Ma'ayn's group](https://maayanlab.cloud/covid19/#nav-genes-table).  This figure shows all genes sets with p< 4e-4 in any tissue or cell type.
 ```{r zenith.gene.sets, fig.width=12, fig.height=12}
+# download.file("https://maayanlab.cloud/covid19/genesets.gmt", "./genesets.gmt")
+# gs.COVID19.v2 = getGenesets("./genesets.gmt", return.type = "GeneSetCollection")
 
 df_gs = resGSA[,data.frame(Geneset=Geneset[PValue<5e-4]),by=c('CellType', 'Tissue')]
 
