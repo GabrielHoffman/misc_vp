@@ -525,10 +525,20 @@ ggplot(countDE, aes(CellType, nDE, fill=Tissue)) + geom_bar(stat="identity", pos
 
 ```{r zenith.gsa}
 library(GSEABase)
+library(EnrichmentBrowser)
 library(zenith)
 
 # Load Gene Ontology database 
 go.gs = get_GeneOntology(to='SYMBOL')
+
+gs.kegg = getGenesets(org = "hsa", db = "kegg", gene.id.type = 'SYMBOL', 
+    return.type = "GeneSetCollection")
+
+# res = showAvailableCollections(org="hsa", "enrichr")
+gs.COVID19 = getGenesets(org = "hsa", db = "enrichr", gene.id.type = 'SYMBOL', 
+    return.type = "GeneSetCollection", lib='COVID-19_Related_Gene_Sets')
+
+gs.combined = GeneSetCollection(c(go.gs, gs.kegg, gs.COVID19))
    
 # convert from GeneSetCollection to list used by camera and zenith
 geneSets_GO = recodeToList( go.gs )
@@ -541,7 +551,7 @@ resList = lapply( names(fitList), function(CT){
     
     # Map from Ensembl genes in geneSets_GO to 
     # from trimmed Ensembl names from RNA-seq data 
-    index = ids2indices( geneSets_GO, rownames(fit))
+    index = ids2indices( gs.combined, rownames(fit))
        
     # filter by size of gene set
     n_genes_in = 20
@@ -550,7 +560,7 @@ resList = lapply( names(fitList), function(CT){
     # Run zenith.  
     # Note that zenith allows analysis of any dream model and 
     # any coefficient or contrast defined in the model. 
-    res = zenith( fit, coef=tissue, index[1:10])
+    res = zenith( fit, coef=tissue, index)
 
     data.table( CellType  = CT, 
                 Tissue    = tissue,
@@ -561,17 +571,6 @@ resList = lapply( names(fitList), function(CT){
 })
 resGSA = do.call(rbind, resList)
 ```
-
-
-
-
-
-
-
-
-
-
-
 
 
 
