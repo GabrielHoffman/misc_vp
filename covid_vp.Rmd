@@ -432,6 +432,27 @@ vp = fitExtractVarPartModel(vobj, form, dge$samples, BPPARAM=SnowParam(24, progr
 plotVarPart( sortCols(vp) )
 ```
 
+## within cell type
+```{r vp.aggregate}
+vpList = lapply( levels(dge$samples$celltype), function(CT){
+
+  idx = which(dge$samples$celltype == CT)
+
+  form = ~ (1|is_covid) + (1|tissue) + (1|subject_id) 
+  
+  fitExtractVarPartModel(vobj[,idx], form, dge$samples[idx,],BPPARAM=SnowParam(6, progressbar=TRUE))
+})
+names(vpList) = levels(dge$samples$celltype)
+```
+
+```{r plot.vp.CT.summary.agg, fig.width=8, fig.height=20}
+figList = lapply( names(vpList), function(ID){
+  plotVarPart( vpList[[ID]] ) + ggtitle(ID)
+  })
+plot_grid(plotlist=figList, ncol=2)
+```
+
+
 ## dream
 ```{r dream.aggregate}
 fitList = lapply( levels(dge$samples$celltype), function(CT){
