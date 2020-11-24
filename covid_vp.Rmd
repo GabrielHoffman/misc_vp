@@ -594,6 +594,21 @@ ggplot(df, aes(CellType, Geneset, fill=zscore)) + geom_tile() + theme(aspect.rat
 ```
 
 
+```{r qvalue}
+library(qvalue)
+hist(resGSA$PValue)
+1 - qvalue(resGSA$PValue)$pi0
+
+# Just CoV gene sets
+df2 = resGSA[grep("^ER", Geneset),]
+hist(df2$PValue)
+df2$FDR = p.adjust(df2$PValue)
+1 - qvalue(df2$PValue)$pi0
+```
+
+
+
+
 
 
 
