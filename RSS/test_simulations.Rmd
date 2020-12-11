@@ -1,0 +1,506 @@
+---
+title: "Linear mixed models with empirical Bayes"
+subtitle: ''
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.Date()`"
+documentclass: article
+output: 
+  html_document:
+    smart: false
+---
+
+
+<!--- 
+# run analysis
+cd /Users/gabrielhoffman/workspace/repos/misc_vp/RSS
+
+rmarkdown::render("test_simulations.Rmd")
+
+
+
+
+ ml pandoc git
+
+system("ml git; git pull")
+
+rmarkdown::render("/hpc/users/hoffmg01/scripts/Brennand/COS/evaluate_power.Rmd")
+   
+
+    toc: true
+--->
+
+
+```{r load.packages, echo=FALSE, message=FALSE, results='hide', echo=FALSE}
+library(variancePartition)
+library(ggplot2)
+library(BiocParallel)
+library(lmerTest)
+library(knitr)
+library(tidyverse)
+library(kableExtra)
+library(PRROC)
+
+library(cowplot)
+
+
+data(varPartData)
+
+options(xtable.type="html")
+
+knitr::opts_chunk$set(
+  echo=FALSE,
+  warning=FALSE,
+  message=TRUE,
+  error = FALSE,
+  tidy = FALSE,
+  cache = TRUE,
+  dev = c("png", "pdf"),   fig.width=7, fig.height=7)
+
+options(markdown.HTML.stylesheet = 'css/custom.css')
+```
+
+
+```{r define, echo=FALSE}
+
+#' Kullback-Leibler divergence between two gamma distributions
+#'
+#' Kullback-Leibler divergence between two gamma distributions
+#'
+#' @param a scale parameter for first gamma
+#' @param b shape parameter for first gamma
+#' @param c scale parameter for second gamma
+#' @param d shape parameter for second gamma
+#'
+#' @description
+#' Code from https://stats.stackexchange.com/questions/11646/kullback-leibler-divergence-between-two-gamma-distributions
+#' 
+#' @examples
+#' KL.gamma( 1, 2, 1, 3)
+KL.gamma <- function(a,b,c,d) {
+  i <- function(a,b,c,d)
+    - c * d / a - b * log(a) - lgamma(b) + (b-1)*(psigamma(d) + log(c))
+  i(c,d,c,d) - i(a,b,c,d)
+}
+
+#' Effective degrees of freedom from weighted mixture of chi-squares 
+#'
+#' Compute the effective degrees of freedom from weighted mixture of chi-squares (\chi^2_1) where positive weights are given by lambda.
+#'
+#' @param lambda weights for mixture of \chi^2_1
+#'
+#' @description
+#' Use the Satterthwaite-Welch method to approximate the mixture of chi-squares as a gamma distribution.  Then find the degrees of freedom, \nu, for a single chi-square distribution that best approximates this gamma distribution by minimizes the KL divergence.  Lastly, return \nu.   
+#' 
+#' @examples 
+#' df_chisq_mixture( c(1, 1, .4, .3) )
+#'
+#' @importFrom stats optimize
+#'
+df_chisq_mixture = function(lambda){
+
+  # if value is less than zero, set it to zero
+  lambda[lambda<0] = 0 
+
+  # Satterthwaite-Welch approximation as a gamma distribution
+  # See Box. Some theorems on quadratic forms applied in the
+          # study of analysis of variance problems, I. Effects of
+          # inequality of variance in the one-way classification. _The
+          # Annals of Mathematical Statistics_, 25(2):290-302, 1954.
+  # The SW approximation uses a scaled chi-square, which is equivalent to a gamma
+  # When the scale is 1, this gives the SW approximation for degrees of freedom
+  # SW matches the first two moments of the gamma to the mixture of chi-square
+  # Code adapted from momentchi2::sw
+  w_val <- sum(lambda)
+  u_val <- sum(lambda^2)/(w_val^2)
+  shape <- 0.5/u_val
+  scale <- 2 * u_val * w_val
+
+  # The KL divergence between a gamma distribution and a chisq distribution
+  f = function(value){
+    KL.gamma(value/2, 2, shape, scale) + KL.gamma(shape, scale, value/2, 2)
+  }
+
+  # Approximate the gamma distribution with a chisq. 
+  # Estimate the degrees of freedom for a chisq distribution that 
+  #   minimizes the symmetric KL divergence
+  fobj = optimize(f, c(min(lambda), sum(lambda)))
+  df = fobj$minimum
+
+  df
+}
+
+
+#' Effective residual degrees of freedom
+#'
+#' Effective residual degrees of freedom for a linear mixed model using the Welch-Satterthwaite approximation
+#' 
+#' @param fit linear mixed model from \code{lmer()}
+#' 
+#' @return Effective residual degrees of freedom
+#' 
+#' @details
+#' Compute the effective residual degrees of freedom, rdf, where the residual sum of squares (RSS) is approximately distributed as RSS/sigma^2 ~ \chi^2_{rdf}, where sigma^2 is the true residual variance.
+#'
+#' The residual degrees of freedom in a linear model is N - p - 1 where N is the sample size and p is the number of predictors.  In this case, rdf is defined based on the hat matrix H = X(X^TX)^{-1}X^T where rdf = n - tr(H)
+#'
+#' @import lme4
+#' @importFrom RSpectra eigs
+#'
+rdf.approx = function(fit, method=c("quadratic", "cubic")){
+
+  method = match.arg( method )
+
+  tr = function(A) sum(diag(A))
+
+  # get hat matrix from linear mixed model
+  H = hatvalues(fit, fullHatMatrix=TRUE)   
+
+  # number of samples
+  n = nrow(H) 
+
+  if( method == "cubic"){   
+    # Compute eigen values of (I-H)(I-H)
+    # this method is O(n^3)
+    lambda = eigen(Matrix::crossprod(diag(1,nrow(H)) - H))$values
+
+  }else if( method == "quadratic"){
+
+    # number of non-zero eigen values of the hat matrix
+    # is <= # random effect ncol + # fixed effect ncol
+    k = fit@Gp[length(fit@Gp)] + ncol(lme4::getME(fit, "X"))
+
+    # Instead compute lambda using on the first k eigen values of H
+    # this is O(n^2k)
+    # compute the first k eigen-values of H 
+    # all subsequent eigen-values are zero 
+    ev = RSpectra::eigs(H, k=k, opts = list(retvec = FALSE, tol=1e-4))$values
+
+    # compute lambda, the eigen-values of (I-H)(I-H)
+    lambda = rep(1, n)
+    lambda[1:length(ev)] = 1 - ev
+    lambda = lambda^2 # square since starting with evalues of H
+  }
+
+  ## Welch-Satterthwaite approximation of degrees of freedom for chi-square
+  ## this is really an fit to a scaled-chi-square imposing a scale of 1
+  ## sum(lambda)^2 / sum(lambda^2)
+  df_chisq_mixture( lambda )
+}
+
+
+# trace only gives correct rdf if evals are 1 and 0
+# trace is given in the book with H is idempotent.
+# I = diag(1, n)
+# tr((I-H) %*% (I-H))
+rdf.trace = function(fit){
+  tr = function(A) sum(diag(A))
+   # get hat matrix from linear mixed model
+  H = hatvalues(fit, fullHatMatrix=TRUE)   
+
+  # number of samples
+  n = nrow(H) 
+
+  I = diag(1, n)
+  tr((I-H) %*% (I-H))
+}
+
+
+ # rdf.satterthwaite(fit)
+
+    # linear time approximation
+    # follows Hastie and Tibshirani. Generalized Additive Models. 1990
+    # p54 for redf
+      # p305 for fast approximation
+
+
+# Compare emprical density if RSS/sigma^2
+# mixture of chi-square, 
+# and rdf.satterthwaite
+
+
+# Distribution of RSS is a mixture of chisq weighted by eigen values of (I-H)(I-H).  In linear regression, this simplifies substantially to RSS/sigma^2 ~ \chi^2_{n-p-1}.  This simplication depends on H being idempotent where eigen-values are either 1 or 0.  But the shrinkage in linear mixed models produces eigen-values between 0 and 1.
+
+# Naively computing eigen values of H is O(n^3).  Since only the first k eigen-values are non-zero they can be computed in O(n^2k).  But there is a linear time method too.  Since H = crossprod(A) + crossprod(B) where A and B are both low rank and sparse.  Compute lambda_a and lambda_b fast then then compute lambda.
+
+
+#' Shrinkage metric for eBayes
+#'
+#' Shrinkage metric for eBayes quantifying the amount of shrinkage that is applied to shrink the maximum likelihood residual variance to the empirical Bayes posterior estimate
+#'
+#' @param sigmaSq maximum likelihood residual variance for every gene 
+#' @param s2.post empirical Bayes posterior estimate of residual variance for every gene
+#' 
+#' @description Evaluates the coefficient from the linear regression of \code{s2.post ~ sigmaSq}. When there is no shrinkage, this value is 1.  Values less than 1 indicate the amount of shrinkage. 
+#'
+#' @import stats
+shrinkageMetric = function( sigmaSq, s2.post){
+  fit = lm( s2.post ~ sigmaSq)
+  as.numeric(coef(fit)[2])
+}
+
+# mixture of chisq works with 
+dmixchisq = function(x, df){
+
+  res = lapply(df, function(dff){
+    dchisq(x, dff)
+    })
+  res = do.call(rbind, res)
+
+  colSums(res) / length(df)
+}
+
+# pdf for scaled chi-squared random variable
+# if x is drawn from: a * rchisq(100000, b)
+# it will have a density dscchisq(x, a,b)
+dscchisq = function(x, a, b){
+  dgamma(x, b/2, 1/(2*a))
+}
+
+# # scaled chisq approx for Monte Carlo
+# values = a * rchisq(1000000, b)
+# plot(density(values), col="blue")
+
+# # gamma PDF
+# x = seq(1e-4, max(values), length.out=9999)
+# lines(x, dscchisq(x, a, b), col="green", lty=2)
+
+
+
+```
+
+# Run simulatuions
+```{r simulate.data}
+set.seed(1)
+info = rbind(info, info, info)
+lvl = levels(info$Individual)
+info = droplevels(info[info$Individual %in% lvl[1:25],])
+n_genes = 2000
+var_true = rgamma(n_genes, 50, 10)
+# var_true[] = 10
+
+n_de = 1000
+
+geneExpr = lapply(1:n_genes, function(j){
+
+  b = ifelse(j <= n_de, .4, 0)
+  beta_ID = rnorm(nlevels(info$Individual))
+  beta_Tissue = rnorm(nlevels(info$Tissue))
+  beta_Batch = rnorm(nlevels(info$Batch))
+
+  y = model.matrix(~0+Age, info) * b +
+    model.matrix(~0+Individual, info) %*% beta_ID +   
+    # model.matrix(~0+Tissue, info) %*% beta_Tissue + 
+    # model.matrix(~0+Batch, info) %*% beta_Batch +
+    rnorm(nrow(info), 0, sd=sqrt(var_true[j])) 
+  t(y)
+  })
+geneExpr = do.call(rbind, geneExpr)
+rownames(geneExpr) = paste0('gene_', 1:nrow(geneExpr))
+
+# Fit models
+form = ~ Age + (1|Individual) #+ (1|Tissue) + (1|Batch)
+
+# fixed effects
+dsgn = model.matrix(subbars(form), info)
+fit_lm = lmFit( geneExpr, dsgn)
+
+# linear mixed model
+fit_mm = dream( geneExpr, form, info, BPPARAM=SnowParam(6))
+
+# define RDF for LMM
+res = fitVarPartModel( geneExpr, form, info, fxn = rdf.approx, REML=TRUE, BPPARAM=SerialParam() )
+
+df.values = unlist(res)
+df.residual.orig = fit_mm$df.residual 
+fit_mm$df.residual = df.values
+```
+# Plotting results
+## Fixed effect model
+```{r plot.fixed}
+# fit$sigma^2 is already corrected by n-1
+rdf = nrow(info) - ncol(fit_lm$design)
+RSS = apply(residuals(fit_lm, geneExpr), 1, function(x) sum(x^2))
+# plot(sigSq, fit_lm$sigma^2 * df); abline(0, 1, col="red")
+# sigSq = fit_lm$sigma^2 * df
+# plot(density(RSS / var_true, from=0), main="fit")
+# x = seq(0, 1000, length.out=10000)
+# lines(x, dchisq(x, df=rdf), col="red")
+
+ggtheme = theme_bw(16) + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1) 
+
+df = data.frame(value = RSS/var_true)
+x = seq(0, max(df$value), length.out=10000)
+df2 = data.frame(x=x, value = dchisq(x, df=rdf))
+
+ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Fixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red")
+```
+
+## Mixed model
+```{r plot.mixed}
+a = 0
+b = 10000
+i = which((fit_mm$df.residual >=a) & (fit_mm$df.residual <=b))
+n = nrow(info)
+RSS = apply(fit_mm$residuals, 1, function(x) sum(x^2))
+# plot(density( RSS[i] / var_true[i], from=0), main="fit")
+# x = seq(0, 1000, length.out=10000)
+
+df = data.frame(value = RSS[i]/var_true[i])
+x = seq(0, max(df$value), length.out=10000)
+df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual[i] ))
+
+ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Mixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red")
+
+
+```
+
+```{r est.sigma, fig.width=8, fig.height=20}
+# Create fit_mm_mod which is like fit_mm except sigma is estimated as RSS/rdf
+fit_mm_mod = fit_mm
+RSS = apply(fit_mm$residuals, 1, function(x) sum(x^2))
+sigSqm = RSS / fit_mm$df.residual 
+fit_mm_mod$sigma = sqrt(sigSqm)
+
+
+# apply Emprical Bayes 
+fit_eb = limma::eBayes(fit_lm)
+fit_eb_mm = limma::eBayes(fit_mm)
+fit_eb_mm_mod = limma::eBayes(fit_mm_mod)
+
+# Empirical Bayes results
+fit_eb$df.prior
+fit_eb_mm$df.prior
+fit_eb_mm_mod$df.prior
+
+fit_eb$s2.prior
+fit_eb_mm$s2.prior
+fit_eb_mm_mod$s2.prior
+
+
+
+
+df = data.frame(value = fit_mm$df.residual)
+fig_rdf = ggplot(df, aes(value)) + geom_density() + ggtheme + xlab("Residual degrees of freedom")
+
+
+df_prior = data.frame(x, value = dscchisq(x, (fit_eb$s2.prior / fit_eb$df.prior), fit_eb$df.prior))
+df = rbind( data.frame( Method = "True variance", sigmaSq = var_true),
+            data.frame( Method = "MLE", sigmaSq = fit_lm$sigma^2), 
+            data.frame( Method = "EB posterior", sigmaSq = fit_eb$s2.post))
+
+df$Method = factor(df$Method, c("True variance", "MLE", "EB Prior", "EB posterior"))
+fig_fixed = ggplot(df, aes(sigmaSq, color=Method)) + geom_density() + ggtheme + theme(legend.position="bottom") + scale_color_manual(values=c("green",  "red", "blue")) + ggtitle("Fixed effects model") + xlab(bquote(hat(sigma)^2)) + geom_line(data=df_prior, aes(x,value), color="orange", linetype="dashed") + xlim(0, max(var_true))
+
+
+
+df_prior = data.frame(x, value = dscchisq(x, (fit_eb_mm_mod$s2.prior / fit_eb_mm_mod$df.prior), fit_eb_mm_mod$df.prior))
+df = rbind( data.frame( Method = "True variance", sigmaSq = var_true),
+            data.frame( Method = "MLE", sigmaSq = fit_mm$sigma^2),
+            data.frame( Method = "EB posterior", sigmaSq = fit_eb_mm_mod$s2.post))
+
+df$Method = factor(df$Method, c("True variance", "MLE", "EB posterior"))
+fig_mixed = ggplot(df, aes(sigmaSq, color=Method)) + geom_density() + ggtheme + theme(legend.position="bottom") + scale_color_manual(values=c("green", "red", "blue")) + ggtitle("Mixed model") + xlab(bquote(hat(sigma)^2)) + geom_line(data=df_prior, aes(x,value), color="orange", linetype="dashed") + xlim(0, max(var_true))
+
+
+
+df_mse = data.frame(sigSq = mean((fit_lm$sigma^2 - var_true)^2),
+          sigSq_mm = mean((fit_mm$sigma^2 - var_true)^2),
+          sigSq_post = mean((fit_eb$s2.post - var_true)^2),
+          sigSq_mm_post = mean((fit_eb_mm$s2.post - var_true)^2), 
+          sigSq_mm_mod_post = mean((fit_eb_mm_mod$s2.post - var_true)^2))
+
+df = reshape2::melt(df_mse)
+df$variable = factor(df$variable, rev(levels(df$variable)))
+
+ymax = max(df$value)*1.05
+fig_MSE = ggplot(df, aes(variable, value)) + geom_bar(stat="identity") + ggtheme + ylab("Mean squared error") + scale_y_continuous(expand=c(0, 0), limits=c(0, ymax)) + coord_flip()
+
+plot_grid( fig_rdf, fig_fixed, fig_mixed, fig_MSE, ncol=1)
+
+
+
+df = data.frame(LM = fit_lm$sigma^2, EB = fit_eb$s2.post)
+lim = max(c(max(df$LM), max(df$EB)))
+fig_shrink_fixed = ggplot(df, aes(LM, EB)) + geom_point() + ggtheme + geom_abline(color="red") + xlim(0, lim) + ylim(0, lim) + geom_smooth(method="lm") + ggtitle("Fixed effect model")
+
+lm(fit_eb$s2.post ~ fit_lm$sigma^2)
+
+df = data.frame(MM = fit_mm$sigma^2, EB = fit_eb_mm_mod$s2.post)
+lim = max(c(max(df$MM), max(df$EB)))
+fig_shrink_mixed = ggplot(df, aes(MM, EB)) + geom_point() + ggtheme + geom_abline(color="red") + xlim(0, lim) + ylim(0, lim) + geom_smooth(method="lm") + ggtitle("Mixed effect model")
+
+plot_grid(fig_shrink_fixed, fig_shrink_mixed)
+
+# kable(df_mse, digits=3) %>% kable_styling(full_width = FALSE)
+
+
+shrinkageMetric( fit_lm$sigma^2, fit_eb$s2.post )
+
+shrinkageMetric( fit_mm$sigma^2, fit_eb_mm_mod$s2.post )
+
+
+
+
+
+
+
+
+
+
+
+```
+
+
+```{r fpr}
+fit_eb$df.total[1:3]
+fit_eb_mm$df.total[1:3]
+
+coef = "(Intercept)"
+p = topTable(fit_eb, coef, number=Inf, sort.by="none")[,'P.Value']
+sum(p < 0.05) / length(p)
+
+
+p = topTable(fit_mm, coef, number=Inf, sort.by="none")[,'P.Value']
+sum(p < 0.05) / length(p)
+
+p = topTable(fit_eb_mm, coef, number=Inf, sort.by="none")[,'P.Value']
+sum(p < 0.05) / length(p)
+
+p.new = 2*pt(abs(fit_eb_mm$t[,coef]), df=df.residual.orig[,coef] + fit_eb_mm$df.prior, lower.tail=FALSE)
+sum(p.new < 0.05) / length(p.new)
+
+
+p.new = 2*pt(abs(fit_eb_mm$t[,coef]), df=df.residual.orig[,coef], lower.tail=FALSE)
+sum(p.new < 0.05) / length(p.new)
+
+
+p.new = 2*pt(abs(fit_eb_mm_mod$t[,coef]), df=df.residual.orig[,coef] + fit_eb_mm_mod$df.prior, lower.tail=FALSE)
+sum(p.new < 0.05) / length(p.new)
+```
+
+```{r aupr}
+
+true_de = rep(0, nrow(geneExpr))
+true_de[1:n_de] = 1
+
+coef = "Age"
+p = topTable(fit_eb, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p), true_de, curve=TRUE )
+pr$auc.integral
+
+p = topTable(fit_mm, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p), true_de, curve=TRUE )
+pr$auc.integral
+
+
+p = topTable(fit_eb_mm_mod, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p), true_de, curve=TRUE )
+pr$auc.integral
+
+
+
+
+```
+
+
+Since fit_mm$sigma^2 must be recomputed from RSS and rdf, how is it used in topTable?
