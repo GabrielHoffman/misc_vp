@@ -31,17 +31,18 @@ rmarkdown::render("/hpc/users/hoffmg01/scripts/Brennand/COS/evaluate_power.Rmd")
 
 
 ```{r load.packages, echo=FALSE, message=FALSE, results='hide', echo=FALSE}
+suppressPackageStartupMessages({
 library(variancePartition)
 library(ggplot2)
 library(BiocParallel)
 library(lmerTest)
 library(knitr)
+library(sparsesvd)
 library(tidyverse)
 library(kableExtra)
 library(PRROC)
-
 library(cowplot)
-
+})
 
 data(varPartData)
 
@@ -60,7 +61,10 @@ options(markdown.HTML.stylesheet = 'css/custom.css')
 ```
 
 
-```{r define, echo=FALSE}
+```{r define, echo=FALSE, cache=FALSE}
+
+source("rdf_functions.R")
+
 
 #' Kullback-Leibler divergence between two gamma distributions
 #'
@@ -117,16 +121,19 @@ df_chisq_mixture = function(lambda){
 
   # The KL divergence between a gamma distribution and a chisq distribution
   f = function(value){
-    KL.gamma(value/2, 2, shape, scale) + KL.gamma(shape, scale, value/2, 2)
+     KL.gamma(value/2, 2, shape, scale) #+ 
+  # KL.gamma(shape, scale, value/2, 2)
   }
 
   # Approximate the gamma distribution with a chisq. 
   # Estimate the degrees of freedom for a chisq distribution that 
   #   minimizes the symmetric KL divergence
-  fobj = optimize(f, c(min(lambda), sum(lambda)))
+  fobj = optimize(f, c(min(lambda), 1.1*sum(lambda)))
   df = fobj$minimum
 
-  df
+  data.frame( df    = df, 
+              shape = shape, 
+              scale = scale)
 }
 
 
@@ -188,21 +195,6 @@ rdf.approx = function(fit, method=c("quadratic", "cubic")){
 }
 
 
-# trace only gives correct rdf if evals are 1 and 0
-# trace is given in the book with H is idempotent.
-# I = diag(1, n)
-# tr((I-H) %*% (I-H))
-rdf.trace = function(fit){
-  tr = function(A) sum(diag(A))
-   # get hat matrix from linear mixed model
-  H = hatvalues(fit, fullHatMatrix=TRUE)   
-
-  # number of samples
-  n = nrow(H) 
-
-  I = diag(1, n)
-  tr((I-H) %*% (I-H))
-}
 
 
  # rdf.satterthwaite(fit)
@@ -223,21 +215,6 @@ rdf.trace = function(fit){
 # Naively computing eigen values of H is O(n^3).  Since only the first k eigen-values are non-zero they can be computed in O(n^2k).  But there is a linear time method too.  Since H = crossprod(A) + crossprod(B) where A and B are both low rank and sparse.  Compute lambda_a and lambda_b fast then then compute lambda.
 
 
-#' Shrinkage metric for eBayes
-#'
-#' Shrinkage metric for eBayes quantifying the amount of shrinkage that is applied to shrink the maximum likelihood residual variance to the empirical Bayes posterior estimate
-#'
-#' @param sigmaSq maximum likelihood residual variance for every gene 
-#' @param s2.post empirical Bayes posterior estimate of residual variance for every gene
-#' 
-#' @description Evaluates the coefficient from the linear regression of \code{s2.post ~ sigmaSq}. When there is no shrinkage, this value is 1.  Values less than 1 indicate the amount of shrinkage. 
-#'
-#' @import stats
-shrinkageMetric = function( sigmaSq, s2.post){
-  fit = lm( s2.post ~ sigmaSq)
-  as.numeric(coef(fit)[2])
-}
-
 # mixture of chisq works with 
 dmixchisq = function(x, df){
 
@@ -247,6 +224,18 @@ dmixchisq = function(x, df){
   res = do.call(rbind, res)
 
   colSums(res) / length(df)
+}
+
+
+# mixture of gamma 
+dmix_gamma = function(x, shape, scale){
+
+  res = lapply(seq_len(length(shape)), function(i){
+    dgamma(x, shape=shape[i], scale=scale[i])
+    })
+  res = do.call(rbind, res)
+
+  colSums(res) / length(shape)
 }
 
 # pdf for scaled chi-squared random variable
@@ -268,29 +257,89 @@ dscchisq = function(x, a, b){
 
 ```
 
+# Mixture of chi-squares
+```{r mixture_of_chisq, eval=FALSE}
+# simulate weights
+lambda = sort(rbeta(300, .5, .5))
+
+# draw values from mixture of chisq
+value = sapply(1:100000, function(i){
+  sum(lambda * rchisq(length(lambda), 1))
+  })
+
+x = seq(1e-4, max(value), length.out=1000)
+plot(density(value, from=0), lwd=2)
+
+# simple SW 1 moment method
+# df_sat = sum(lambda)^2 / sum(lambda^2) 
+# lines(x, dchisq(x, df_sat), col="blue", lty="dashed")
+
+# MLE for chisq
+f = function(df){
+  sum(pchisq(value, df, log=TRUE))
+}
+df.mc = optimize(f, c(1e-4, sum(lambda)))$minimum
+lines(x, dchisq(x, df.mc), col="red", lty=2)
+
+# sw approximation
+# this approximation works better as sum(lambda) increases
+df.sw = df_chisq_mixture( lambda )$df
+lines(x, dchisq(x, df.sw), col="green", lwd=2, lty=2)
+
+# gamma approximation
+est = fitdistrplus::mledist(value, "gamma")
+lines(x, dgamma(x, est$estimate[1], est$estimate[2]), col="orange", lwd=1)
+
+
+```
+
+```{r chisq, fig.width=12}
+x = seq(0, 30, length.out=1000)
+
+figList = lapply( c(2, 5, 7, 10, 20, 30), function(n){
+  # simulate weights
+  # lambda = sort(rbeta(n, .5, .5))
+  lambda = rep(0.5, n)
+
+  # draw values from mixture of chisq
+  value = sapply(1:100000, function(i){
+    sum(lambda * rchisq(length(lambda), 1))
+    })
+  
+  df2 = data.frame(x=x, density = dchisq(x, sum(lambda)))
+  df2 = df2[df2$density > 1e-3,]
+
+  ggplot(data.frame(value = value), aes(value)) + geom_density() + theme_classic() + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1)  + geom_line(data=df2, aes(x, density), color='red', linetype="dashed") + ggtitle(paste0('n=',n)) + scale_y_continuous(expand=c(0,0), limits=c(0, NA)) + scale_x_continuous(expand=c(0,0), limits=c(0, NA))
+})
+
+plot_grid( plotlist = figList, ncol=3)
+```
+
 # Run simulatuions
 ```{r simulate.data}
 set.seed(1)
-info = rbind(info, info, info)
+# info = rbind(info, info, info)
 lvl = levels(info$Individual)
-info = droplevels(info[info$Individual %in% lvl[1:25],])
-n_genes = 2000
-var_true = rgamma(n_genes, 50, 10)
+info = droplevels(info[info$Individual %in% lvl[1:8],])
+n_genes = 1000
+var_true = rgamma(n_genes, 5, 1)
 # var_true[] = 10
 
-n_de = 1000
+n_de = n_genes/2
+
 
 geneExpr = lapply(1:n_genes, function(j){
 
   b = ifelse(j <= n_de, .4, 0)
-  beta_ID = rnorm(nlevels(info$Individual))
+
   beta_Tissue = rnorm(nlevels(info$Tissue))
+  beta_ID = rnorm(nlevels(info$Individual))
   beta_Batch = rnorm(nlevels(info$Batch))
 
   y = model.matrix(~0+Age, info) * b +
     model.matrix(~0+Individual, info) %*% beta_ID +   
-    # model.matrix(~0+Tissue, info) %*% beta_Tissue + 
-    # model.matrix(~0+Batch, info) %*% beta_Batch +
+    model.matrix(~0+Tissue, info) %*% beta_Tissue + 
+    model.matrix(~0+Batch, info) %*% beta_Batch +
     rnorm(nrow(info), 0, sd=sqrt(var_true[j])) 
   t(y)
   })
@@ -298,33 +347,35 @@ geneExpr = do.call(rbind, geneExpr)
 rownames(geneExpr) = paste0('gene_', 1:nrow(geneExpr))
 
 # Fit models
-form = ~ Age + (1|Individual) #+ (1|Tissue) + (1|Batch)
+form = ~ Age + (1|Individual) + (1|Tissue) + (1|Batch)
+# form = ~ (1|Individual)
 
 # fixed effects
 dsgn = model.matrix(subbars(form), info)
 fit_lm = lmFit( geneExpr, dsgn)
 
+REML = TRUE
 # linear mixed model
-fit_mm = dream( geneExpr, form, info, BPPARAM=SnowParam(6))
+fit_mm = dream( geneExpr, form, info, BPPARAM=SnowParam(6), REML=REML)
 
 # define RDF for LMM
-res = fitVarPartModel( geneExpr, form, info, fxn = rdf.approx, REML=TRUE, BPPARAM=SerialParam() )
+res = fitVarPartModel( geneExpr, form, info, fxn = rdf.merMod, REML=REML, BPPARAM=SerialParam() )
 
+# df.values = sapply(res, function(x) x$df)
 df.values = unlist(res)
 df.residual.orig = fit_mm$df.residual 
 fit_mm$df.residual = df.values
+
+# rdf.shape = sapply(res, function(x) x$shape)
+# rdf.scale = sapply(res, function(x) x$scale)
 ```
+
 # Plotting results
 ## Fixed effect model
 ```{r plot.fixed}
 # fit$sigma^2 is already corrected by n-1
 rdf = nrow(info) - ncol(fit_lm$design)
 RSS = apply(residuals(fit_lm, geneExpr), 1, function(x) sum(x^2))
-# plot(sigSq, fit_lm$sigma^2 * df); abline(0, 1, col="red")
-# sigSq = fit_lm$sigma^2 * df
-# plot(density(RSS / var_true, from=0), main="fit")
-# x = seq(0, 1000, length.out=10000)
-# lines(x, dchisq(x, df=rdf), col="red")
 
 ggtheme = theme_bw(16) + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1) 
 
@@ -332,24 +383,73 @@ df = data.frame(value = RSS/var_true)
 x = seq(0, max(df$value), length.out=10000)
 df2 = data.frame(x=x, value = dchisq(x, df=rdf))
 
-ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Fixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red")
+ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Fixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2))
 ```
 
 ## Mixed model
 ```{r plot.mixed}
 a = 0
-b = 10000
+b = 99999
 i = which((fit_mm$df.residual >=a) & (fit_mm$df.residual <=b))
 n = nrow(info)
 RSS = apply(fit_mm$residuals, 1, function(x) sum(x^2))
-# plot(density( RSS[i] / var_true[i], from=0), main="fit")
-# x = seq(0, 1000, length.out=10000)
 
+df = data.frame(value = RSS[i]/var_true[i])
+x = seq(0, max(df$value), length.out=10000)
+# df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual[i] ))
+
+ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Mixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) 
+
+# compare mixture of chisq to mixture of gamma
+plot(density(RSS[i]/var_true[i]))
+lines(df2$x, df2$value, col="red")
+# lines(x, dmix_gamma(x, rdf.shape[i], rdf.scale[i]), col="blue")
+
+```
+
+df = data.frame(var_true, RSS, df.residual=fit_mm$df.residual, index=seq_len(length(RSS)))
+
+ggplot(df, aes(var_true, RSS, color=index<n_de)) + geom_point(size=.2)
+
+
+```{r test, eval=FALSE}
+# estimate sigma
+fit@devcomp$cmp['sigmaML']
+sqrt(fit@devcomp$cmp['pwrss'] / fit@devcomp$dim['n'])
+sqrt(fit@devcomp$cmp['pwrss'] / rdf.approx(fit))
+
+f = function(fit){
+  # sqrt(fit@devcomp$cmp['pwrss'] / rdf.approx(fit))
+  fit@devcomp$cmp['wrss']
+}
+
+res2.RSS = fitVarPartModel( geneExpr, form, info, fxn = f, REML=REML, BPPARAM=SnowParam(6) )
+RSS = unlist(res2.RSS)
+
+i = 1:length(RSS)
 df = data.frame(value = RSS[i]/var_true[i])
 x = seq(0, max(df$value), length.out=10000)
 df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual[i] ))
 
-ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Mixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red")
+ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Mixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) + xlim(200, 350)
+
+
+f = function(fit){
+  # sqrt(fit@devcomp$cmp['pwrss'] / rdf.approx(fit))
+  # fit@devcomp$cmp['pwrss']
+  sigma(fit)^2 *  fit@devcomp$dims['nmp']
+}
+
+res2.RSS.p = fitVarPartModel( geneExpr, form, info, fxn = f, REML=REML, BPPARAM=SnowParam(6) )
+RSS.p = unlist(res2.RSS.p)
+
+i = 1:length(RSS)
+df = data.frame(value = RSS.p[i]/var_true[i])
+x = seq(0, max(c(max(df$value), max(fit_mm$df.residual[i])*1.5)), length.out=10000)
+df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual[i] ))
+
+ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Mixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) 
+
 
 
 ```
@@ -478,7 +578,7 @@ p.new = 2*pt(abs(fit_eb_mm_mod$t[,coef]), df=df.residual.orig[,coef] + fit_eb_mm
 sum(p.new < 0.05) / length(p.new)
 ```
 
-```{r aupr}
+```{r aupr, eval=FALSE}
 
 true_de = rep(0, nrow(geneExpr))
 true_de[1:n_de] = 1
