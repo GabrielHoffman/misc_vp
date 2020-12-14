@@ -66,136 +66,6 @@ options(markdown.HTML.stylesheet = 'css/custom.css')
 source("rdf_functions.R")
 
 
-#' Kullback-Leibler divergence between two gamma distributions
-#'
-#' Kullback-Leibler divergence between two gamma distributions
-#'
-#' @param a scale parameter for first gamma
-#' @param b shape parameter for first gamma
-#' @param c scale parameter for second gamma
-#' @param d shape parameter for second gamma
-#'
-#' @description
-#' Code from https://stats.stackexchange.com/questions/11646/kullback-leibler-divergence-between-two-gamma-distributions
-#' 
-#' @examples
-#' KL.gamma( 1, 2, 1, 3)
-KL.gamma <- function(a,b,c,d) {
-  i <- function(a,b,c,d)
-    - c * d / a - b * log(a) - lgamma(b) + (b-1)*(psigamma(d) + log(c))
-  i(c,d,c,d) - i(a,b,c,d)
-}
-
-#' Effective degrees of freedom from weighted mixture of chi-squares 
-#'
-#' Compute the effective degrees of freedom from weighted mixture of chi-squares (\chi^2_1) where positive weights are given by lambda.
-#'
-#' @param lambda weights for mixture of \chi^2_1
-#'
-#' @description
-#' Use the Satterthwaite-Welch method to approximate the mixture of chi-squares as a gamma distribution.  Then find the degrees of freedom, \nu, for a single chi-square distribution that best approximates this gamma distribution by minimizes the KL divergence.  Lastly, return \nu.   
-#' 
-#' @examples 
-#' df_chisq_mixture( c(1, 1, .4, .3) )
-#'
-#' @importFrom stats optimize
-#'
-df_chisq_mixture = function(lambda){
-
-  # if value is less than zero, set it to zero
-  lambda[lambda<0] = 0 
-
-  # Satterthwaite-Welch approximation as a gamma distribution
-  # See Box. Some theorems on quadratic forms applied in the
-          # study of analysis of variance problems, I. Effects of
-          # inequality of variance in the one-way classification. _The
-          # Annals of Mathematical Statistics_, 25(2):290-302, 1954.
-  # The SW approximation uses a scaled chi-square, which is equivalent to a gamma
-  # When the scale is 1, this gives the SW approximation for degrees of freedom
-  # SW matches the first two moments of the gamma to the mixture of chi-square
-  # Code adapted from momentchi2::sw
-  w_val <- sum(lambda)
-  u_val <- sum(lambda^2)/(w_val^2)
-  shape <- 0.5/u_val
-  scale <- 2 * u_val * w_val
-
-  # The KL divergence between a gamma distribution and a chisq distribution
-  f = function(value){
-     KL.gamma(value/2, 2, shape, scale) #+ 
-  # KL.gamma(shape, scale, value/2, 2)
-  }
-
-  # Approximate the gamma distribution with a chisq. 
-  # Estimate the degrees of freedom for a chisq distribution that 
-  #   minimizes the symmetric KL divergence
-  fobj = optimize(f, c(min(lambda), 1.1*sum(lambda)))
-  df = fobj$minimum
-
-  data.frame( df    = df, 
-              shape = shape, 
-              scale = scale)
-}
-
-
-#' Effective residual degrees of freedom
-#'
-#' Effective residual degrees of freedom for a linear mixed model using the Welch-Satterthwaite approximation
-#' 
-#' @param fit linear mixed model from \code{lmer()}
-#' 
-#' @return Effective residual degrees of freedom
-#' 
-#' @details
-#' Compute the effective residual degrees of freedom, rdf, where the residual sum of squares (RSS) is approximately distributed as RSS/sigma^2 ~ \chi^2_{rdf}, where sigma^2 is the true residual variance.
-#'
-#' The residual degrees of freedom in a linear model is N - p - 1 where N is the sample size and p is the number of predictors.  In this case, rdf is defined based on the hat matrix H = X(X^TX)^{-1}X^T where rdf = n - tr(H)
-#'
-#' @import lme4
-#' @importFrom RSpectra eigs
-#'
-rdf.approx = function(fit, method=c("quadratic", "cubic")){
-
-  method = match.arg( method )
-
-  tr = function(A) sum(diag(A))
-
-  # get hat matrix from linear mixed model
-  H = hatvalues(fit, fullHatMatrix=TRUE)   
-
-  # number of samples
-  n = nrow(H) 
-
-  if( method == "cubic"){   
-    # Compute eigen values of (I-H)(I-H)
-    # this method is O(n^3)
-    lambda = eigen(Matrix::crossprod(diag(1,nrow(H)) - H))$values
-
-  }else if( method == "quadratic"){
-
-    # number of non-zero eigen values of the hat matrix
-    # is <= # random effect ncol + # fixed effect ncol
-    k = fit@Gp[length(fit@Gp)] + ncol(lme4::getME(fit, "X"))
-
-    # Instead compute lambda using on the first k eigen values of H
-    # this is O(n^2k)
-    # compute the first k eigen-values of H 
-    # all subsequent eigen-values are zero 
-    ev = RSpectra::eigs(H, k=k, opts = list(retvec = FALSE, tol=1e-4))$values
-
-    # compute lambda, the eigen-values of (I-H)(I-H)
-    lambda = rep(1, n)
-    lambda[1:length(ev)] = 1 - ev
-    lambda = lambda^2 # square since starting with evalues of H
-  }
-
-  ## Welch-Satterthwaite approximation of degrees of freedom for chi-square
-  ## this is really an fit to a scaled-chi-square imposing a scale of 1
-  ## sum(lambda)^2 / sum(lambda^2)
-  df_chisq_mixture( lambda )
-}
-
-
-
 
  # rdf.satterthwaite(fit)
 
@@ -226,74 +96,18 @@ dmixchisq = function(x, df){
   colSums(res) / length(df)
 }
 
-
-# mixture of gamma 
-dmix_gamma = function(x, shape, scale){
-
-  res = lapply(seq_len(length(shape)), function(i){
-    dgamma(x, shape=shape[i], scale=scale[i])
-    })
-  res = do.call(rbind, res)
-
-  colSums(res) / length(shape)
-}
-
-# pdf for scaled chi-squared random variable
-# if x is drawn from: a * rchisq(100000, b)
-# it will have a density dscchisq(x, a,b)
+#' Scaled chi-square 
+#' 
+#' Scaled chi-square density using a gamma distribution
 dscchisq = function(x, a, b){
   dgamma(x, b/2, 1/(2*a))
 }
-
-# # scaled chisq approx for Monte Carlo
-# values = a * rchisq(1000000, b)
-# plot(density(values), col="blue")
-
-# # gamma PDF
-# x = seq(1e-4, max(values), length.out=9999)
-# lines(x, dscchisq(x, a, b), col="green", lty=2)
-
-
-
 ```
 
 # Mixture of chi-squares
-```{r mixture_of_chisq, eval=FALSE}
-# simulate weights
-lambda = sort(rbeta(300, .5, .5))
+Let $x$ be a weighted mixture of $n$ $\chi^2_1$ values so that $x \sim \sum_{i=1}^n \lambda_i \chi^2_1$.  This distribution has $n$ parameters and an expectation $\sum_{i=1}^n \lambda_i$.  It can be approximated using a single $\chi^2_\nu$ by setting $\nu = \sum_{i=1}^n \lambda_i$.  Here 100000 values were sampled from a weighted mixture of $\chi^2_1$ with $\lambda_i = 0.5$ and the kernel density is plotted in black for multiple values of $n$. The $\chi^2_\nu$ approximation is shown in red for each value of $n$.     
 
-# draw values from mixture of chisq
-value = sapply(1:100000, function(i){
-  sum(lambda * rchisq(length(lambda), 1))
-  })
-
-x = seq(1e-4, max(value), length.out=1000)
-plot(density(value, from=0), lwd=2)
-
-# simple SW 1 moment method
-# df_sat = sum(lambda)^2 / sum(lambda^2) 
-# lines(x, dchisq(x, df_sat), col="blue", lty="dashed")
-
-# MLE for chisq
-f = function(df){
-  sum(pchisq(value, df, log=TRUE))
-}
-df.mc = optimize(f, c(1e-4, sum(lambda)))$minimum
-lines(x, dchisq(x, df.mc), col="red", lty=2)
-
-# sw approximation
-# this approximation works better as sum(lambda) increases
-df.sw = df_chisq_mixture( lambda )$df
-lines(x, dchisq(x, df.sw), col="green", lwd=2, lty=2)
-
-# gamma approximation
-est = fitdistrplus::mledist(value, "gamma")
-lines(x, dgamma(x, est$estimate[1], est$estimate[2]), col="orange", lwd=1)
-
-
-```
-
-```{r chisq, fig.width=12}
+```{r mixture_of_chisq, fig.width=10}
 x = seq(0, 30, length.out=1000)
 
 figList = lapply( c(2, 5, 7, 10, 20, 30), function(n){
@@ -370,9 +184,10 @@ fit_mm$df.residual = df.values
 # rdf.scale = sapply(res, function(x) x$scale)
 ```
 
-# Plotting results
-## Fixed effect model
-```{r plot.fixed}
+# Residual degrees of freedom
+
+```{r plot.fixed, fig.height=4, fig.width=9}
+# Fixed effect model
 # fit$sigma^2 is already corrected by n-1
 rdf = nrow(info) - ncol(fit_lm$design)
 RSS = apply(residuals(fit_lm, geneExpr), 1, function(x) sum(x^2))
@@ -383,33 +198,63 @@ df = data.frame(value = RSS/var_true)
 x = seq(0, max(df$value), length.out=10000)
 df2 = data.frame(x=x, value = dchisq(x, df=rdf))
 
-ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Fixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2))
-```
+fig_fixed = ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Linear model") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2))
 
 ## Mixed model
-```{r plot.mixed}
-a = 0
-b = 99999
-i = which((fit_mm$df.residual >=a) & (fit_mm$df.residual <=b))
 n = nrow(info)
 RSS = apply(fit_mm$residuals, 1, function(x) sum(x^2))
 
-df = data.frame(value = RSS[i]/var_true[i])
+df = data.frame(value = RSS/var_true)
 x = seq(0, max(df$value), length.out=10000)
-# df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual[i] ))
+df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual ))
 
-ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Mixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) 
+fig_mixed = ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Linear mixed model") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) 
 
-# compare mixture of chisq to mixture of gamma
-plot(density(RSS[i]/var_true[i]))
-lines(df2$x, df2$value, col="red")
-# lines(x, dmix_gamma(x, rdf.shape[i], rdf.scale[i]), col="blue")
-
+plot_grid( fig_fixed, fig_mixed)
 ```
 
-df = data.frame(var_true, RSS, df.residual=fit_mm$df.residual, index=seq_len(length(RSS)))
+## Residual degrees of freedom run time
+```{r rdf.time, message=FALSE}
+data(varPartData)
+info = rbind(info, info, info)
+info = rbind(info, info)
+# info = rbind(info, info)
+# info = rbind(info, info)
 
-ggplot(df, aes(var_true, RSS, color=index<n_de)) + geom_point(size=.2)
+lvl = levels(info$Individual)
+
+n_reps = 20
+
+df_time = lapply(2:25, function(k){
+
+  message("\rk = ",k)
+  infoSub = droplevels(info[info$Individual %in% lvl[1:k],])
+
+  beta_Tissue = rnorm(nlevels(infoSub$Tissue))
+  beta_ID = rnorm(nlevels(infoSub$Individual))
+  beta_Batch = rnorm(nlevels(infoSub$Batch))
+
+  y = model.matrix(~0+Age, infoSub) * 1.0 +
+    model.matrix(~0+Individual, infoSub) %*% beta_ID +   
+    model.matrix(~0+Tissue, infoSub) %*% beta_Tissue + 
+    model.matrix(~0+Batch, infoSub) %*% beta_Batch +
+    rnorm(nrow(infoSub), 0, sd=sqrt(var_true[j])) 
+ 
+  fit = lmer(y ~ Age + (1|Batch) + (1|Tissue) + (1|Individual), infoSub)    
+
+  data.frame(N          = nrow(infoSub), 
+            rdf.merMod  = system.time(replicate(n_reps, rdf.merMod(fit)))[3],
+            rdf.naive   = system.time(replicate(n_reps, rdf.naive(fit)))[3])
+})
+df_time = do.call(rbind, df_time)
+
+df_melt = reshape2::melt(df_time, id.vars='N')
+df_melt$variable = factor(df_melt$variable, c('rdf.naive', 'rdf.merMod'))
+
+xmax = max(df_melt$N) * 1.05
+ymax = max(df_melt$value / n_reps * 20000) * 1.05
+ggplot(df_melt, aes(N, value / n_reps * 20000, color=variable)) + geom_point() + theme_classic() + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1) + geom_smooth(formula = y ~ x + I(x^2), method="lm", se=FALSE) + ylab("Time (seconds for 20K genes)") + scale_color_manual(name = "Method", values=c('red2', 'dodgerblue')) + scale_x_continuous(expand=c(0, 0), limits=c(0, xmax)) + scale_y_continuous(expand=c(0, 0), limits=c(0, ymax)) + xlab("Sample size")
+```
 
 
 ```{r test, eval=FALSE}
@@ -478,30 +323,14 @@ fit_eb_mm_mod$s2.prior
 
 
 
-
 df = data.frame(value = fit_mm$df.residual)
 fig_rdf = ggplot(df, aes(value)) + geom_density() + ggtheme + xlab("Residual degrees of freedom")
 
+# variances from linear model
+fig_fixed = plot_variance_estimates(fit_lm, fit_eb, var_true)
 
-df_prior = data.frame(x, value = dscchisq(x, (fit_eb$s2.prior / fit_eb$df.prior), fit_eb$df.prior))
-df = rbind( data.frame( Method = "True variance", sigmaSq = var_true),
-            data.frame( Method = "MLE", sigmaSq = fit_lm$sigma^2), 
-            data.frame( Method = "EB posterior", sigmaSq = fit_eb$s2.post))
-
-df$Method = factor(df$Method, c("True variance", "MLE", "EB Prior", "EB posterior"))
-fig_fixed = ggplot(df, aes(sigmaSq, color=Method)) + geom_density() + ggtheme + theme(legend.position="bottom") + scale_color_manual(values=c("green",  "red", "blue")) + ggtitle("Fixed effects model") + xlab(bquote(hat(sigma)^2)) + geom_line(data=df_prior, aes(x,value), color="orange", linetype="dashed") + xlim(0, max(var_true))
-
-
-
-df_prior = data.frame(x, value = dscchisq(x, (fit_eb_mm_mod$s2.prior / fit_eb_mm_mod$df.prior), fit_eb_mm_mod$df.prior))
-df = rbind( data.frame( Method = "True variance", sigmaSq = var_true),
-            data.frame( Method = "MLE", sigmaSq = fit_mm$sigma^2),
-            data.frame( Method = "EB posterior", sigmaSq = fit_eb_mm_mod$s2.post))
-
-df$Method = factor(df$Method, c("True variance", "MLE", "EB posterior"))
-fig_mixed = ggplot(df, aes(sigmaSq, color=Method)) + geom_density() + ggtheme + theme(legend.position="bottom") + scale_color_manual(values=c("green", "red", "blue")) + ggtitle("Mixed model") + xlab(bquote(hat(sigma)^2)) + geom_line(data=df_prior, aes(x,value), color="orange", linetype="dashed") + xlim(0, max(var_true))
-
-
+# variances from linear mixed model
+fig_mixed = plot_variance_estimates(fit_mm, fit_eb_mm_mod, var_true)
 
 df_mse = data.frame(sigSq = mean((fit_lm$sigma^2 - var_true)^2),
           sigSq_mm = mean((fit_mm$sigma^2 - var_true)^2),
