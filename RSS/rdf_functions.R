@@ -14,7 +14,7 @@
 # When no strinkage, rdf.trace is exact.
 # The approximation improves as sum(lambda) increases
 # For smaller rdf, the chi-square is shifted slighly left
-rdf.trace = function(fit){
+rdf.naive = function(fit){
   tr = function(A) sum(diag(A))
    # get hat matrix from linear mixed model
   H = lme4:::hatvalues.merMod(fit, fullHatMatrix=TRUE)   
@@ -60,6 +60,9 @@ rdf_from_matrices = function(A,B){
 	# H = crossprod(A) + crossprod(B)
 	# n = nrow(H)
 	# rdf = n - 2*tr(H) + sum(H*H)
+
+	# Define trace function	
+	tr = function(A) sum(diag(A))
 
 	# Compute SVD of A.
 	# if A is a sparseMatrix, sparsesvd() is substantially faster
@@ -174,3 +177,52 @@ shrinkageMetric = function( sigmaSq, s2.post){
 }
 
 
+
+#' Plot Variance Estimates
+#'
+#' @param fit model fit from \code{dream()}
+#' @param fitEB model fit from \code{eBayes()}
+#' @param var_true array of true variance values from simulation (optional0)
+#'
+#' @importFrom stats density
+#' @importFrom ggplot2
+#'
+plot_variance_estimates = function(fit, fitEB, var_true = NULL){
+
+  # largest value on the x-axis
+  xmax = max(fit$sigma^2)
+
+  # x values where to evaluate the scaled chi-square density
+  x = seq(0, xmax, length.out=1000)
+
+  # Empirical Bayes prior density
+  df_combine = data.frame(Method = "EB prior", x = x, 
+              y = dscchisq(x, (fitEB$s2.prior / fitEB$df.prior), fitEB$df.prior))
+
+  # MLE
+  d_mle = density(fit$sigma^2, from=0)
+  df_combine = rbind(df_combine, 
+    data.frame(Method = "MLE", x=d_mle$x, y = d_mle$y))
+
+  # EB posterior
+  d_posterior = density(fitEB$s2.post, from=0)
+  df_combine = rbind(df_combine, 
+    data.frame(Method = "EB posterior", x=d_posterior$x, y = d_posterior$y))
+
+  # True variance
+  if( ! is.null(var_true) ){
+    d_true = density(var_true, from=0)
+    df_combine = rbind(df_combine, 
+      data.frame(Method = "True variance", x=d_true$x, y = d_true$y))
+  }
+
+  # order methods
+  df_combine$Method = factor(df_combine$Method, c("True variance", "MLE", "EB prior", "EB posterior"))
+  
+  # define colors
+  col = c("True variance" = "green", "MLE" = "red", "EB prior" = "orange", "EB posterior" = "blue")
+
+  # plot
+  ymax = max(df_combine$y) * 1.05
+  ggplot(df_combine, aes(x, y, color=Method)) + geom_line() + theme_bw(16) + theme(legend.position="right", aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + scale_color_manual(values=col[levels(df_combine$Method)]) + xlab(bquote(hat(sigma)^2)) + ylab("Density") +scale_x_continuous(expand=c(0, 0), limits=c(0,xmax)) + scale_y_continuous(expand=c(0, 0), limits=c(0,ymax))
+}
