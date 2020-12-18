@@ -14,20 +14,20 @@
 # When no strinkage, rdf.trace is exact.
 # The approximation improves as sum(lambda) increases
 # For smaller rdf, the chi-square is shifted slighly left
-rdf.naive = function(fit){
-  tr = function(A) sum(diag(A))
-   # get hat matrix from linear mixed model
-  H = lme4:::hatvalues.merMod(fit, fullHatMatrix=TRUE)   
+# rdf.naive = function(fit){
+#   tr = function(A) sum(diag(A))
+#    # get hat matrix from linear mixed model
+#   H = lme4:::hatvalues.merMod(fit, fullHatMatrix=TRUE)   
 
-  # number of samples
-  n = nrow(H) 
+#   # number of samples
+#   n = nrow(H) 
 
-  # I = diag(1, n)
-  # tr((I-H) %*% (I-H))
-  n - 2*tr(H) + sum(H*H)
-}
+#   # I = diag(1, n)
+#   # tr((I-H) %*% (I-H))
+#   n - 2*tr(H) + sum(H*H)
+# }
 
-#' Fast approximate residual degrees of freedom 
+# #' Fast approximate residual degrees of freedom 
 #'
 #' Defining \eqn{H = A^TA + B^TB} where \eqn{A} and \eqn{B} are low rank, compute 
 #' \eqn{n - 2tr(H) + tr(HH)} in \eqn{O(np^2)} instead of \eqn{O(n^2p^2)}.
@@ -66,35 +66,61 @@ rdf_from_matrices = function(A,B){
 
 	# Compute SVD of A.
 	# if A is a sparseMatrix, sparsesvd() is substantially faster
-	if( is(A, "sparseMatrix") ){
-		dcmp_A = sparsesvd(A, rank=nrow(A))
-	}else{
-		dcmp_A = svd(A, nu=0)
-	}
+	# if( is(A, "sparseMatrix") ){
+	# 	dcmp_A = sparsesvd(A)
+	# }else{
+	# 	dcmp_A = svd(A, nu=0)
+	# }
+
+	# # drop very small singular values
+	# tol = 1e-10
+	# s_a = dcmp_A$d[dcmp_A$d > tol]
+	# V = dcmp_A$v[,seq_len(length(s_a))]
 
 	# B
-	if( is(B, "sparseMatrix") ){
-		dcmp_B = sparsesvd(B, rank=nrow(B))
-	}else{
-		dcmp_B = svd(B, nu=0, nv=0)
-	}
+	# if( is(B, "sparseMatrix") ){
+	# 	dcmp_B = sparsesvd(B, rank=nrow(B))
+	# }else{
+	# 	dcmp_B = svd(B, nu=0, nv=0)
+	# }
+	# s_b = dcmp_B$d
 
 	# system.time(replicate(1000, svd(A, nu=0)))
-	# system.time(replicate(1000, sparsesvd(A, rank=nrow(A))))
+	# system.time(replicate(1000, sparsesvd(A)))
+	# system.time(replicate(1000, f(A)))
+
+	# f = function(A){
+	# 	dcmp = eigen(tcrossprod(A))
+	# 	U = dcmp$vectors
+	# 	s_a = sqrt(dcmp$values)
+	# }
+
+	# A
+	dcmp_A = eigen(tcrossprod(A))
+
+	tol = 1e-12
+	idx = which(dcmp_A$values > tol)
+	U = dcmp_A$vectors[,idx,drop=FALSE]
+	s_a = sqrt(dcmp_A$values[idx])
+	VT = crossprod(U, A) / s_a
+
+	# B
+	dcmp_B = eigen(tcrossprod(B), only.values=TRUE)
+	idx = which(dcmp_B$values > tol)
+	s_b = sqrt(dcmp_B$values[idx])
 
 	# system.time(replicate(100, svd(B, nu=0)))
 	# system.time(replicate(100, sparsesvd(B, rank=nrow(B))))
 
 	# U = dcmp_A$u
-	V = dcmp_A$v
-	s_a = dcmp_A$d
-	s_b = dcmp_B$d
+
 	# Q = crossprod(U, B) %*% dcmp_A$v # change order of this?
 
 	# Q = crossprod(U, B %*% dcmp_A$v) # change order of this?
 	# sum(s_a^4) + 2*tr( diag(s_a^2) %*% crossprod(Q)) + sum(s_b^4) 
 	# sum(s_a^4) + 2*sum( diag(s_a^2) * crossprod(B %*% V)) + sum(s_b^4) 
-	tr_H_H = sum(s_a^4) + 2*tr( (s_a^2) * crossprod(B %*% V)) + sum(s_b^4) 
+	# tr_H_H = sum(s_a^4) + 2*tr( (s_a^2) * crossprod(B %*% V)) + sum(s_b^4) 
+	tr_H_H = sum(s_a^4) + 2*tr( (s_a^2) * crossprod(tcrossprod(B, VT))) + sum(s_b^4) 
 
 	n = ncol(A)
 
@@ -107,6 +133,7 @@ rdf_from_matrices = function(A,B){
 #' Compute the approximate residual degrees of freedom from a linear mixed model.
 #'
 #' @param model An object of class \code{merMod}
+#' @param method Use algorithm that is "linear" (default) or quadratic time in the number of samples
 #'
 #' @description 
 #' For a linear model with \eqn{n} samples and \eqn{p} covariates, \eqn{RSS/sigma^2 \sim \chi^2_{\nu}} where \eqn{\nu = n-p} is the residual degrees of freedom.  In the case of a linear mixed model, the distribution is no longer exactly a chi-square distribution, but can be approximated with a chi-square distribution. 
@@ -125,26 +152,41 @@ rdf_from_matrices = function(A,B){
 #' @import Matrix lme4
 #' @seealso rdf_from_matrices
 #' @export
-rdf.merMod = function(model) {
+rdf.merMod = function(model, method=c("linear", "quadratic")) {
+
+	method = match.arg(method)
+
 	# code adapted from lme4:::hatvalues.merMod
     if (isGLMM(model)) 
         warning("the hat matrix may not make sense for GLMMs")
 
-    sqrtW <- Diagonal(x = sqrt(weights(model, type = "prior")))
+    if( method == 'linear'){
+	    sqrtW <- Diagonal(x = sqrt(weights(model, type = "prior")))
 
-    rdf <- with(getME(model, c("L", "Lambdat", "Zt", "RX", "X", 
-        "RZX")), {
-        CL <- solve(L, solve(L, Lambdat %*% Zt %*% sqrtW, system = "P"), 
-            system = "L")
-        CR <- solve(t(RX), t(X) %*% sqrtW - crossprod(RZX, CL))
-        # if (fullHatMatrix) 
-        #     crossprod(CL) + crossprod(CR)
-        # else colSums(CR^2) + colSums(CL^2)
+	    rdf <- with(getME(model, c("L", "Lambdat", "Zt", "RX", "X", 
+	        "RZX")), {
+	        CL <- solve(L, solve(L, Lambdat %*% Zt %*% sqrtW, system = "P"), 
+	            system = "L")
+	        CR <- solve(t(RX), t(X) %*% sqrtW - crossprod(RZX, CL))
+	        # if (fullHatMatrix) 
+	        #     crossprod(CL) + crossprod(CR)
+	        # else colSums(CR^2) + colSums(CL^2)
 
-        # H = crossprod(CL) + crossprod(CR)
-        # compute residual degrees of freedom as if using H, but use only CL and CR
-        rdf_from_matrices(CL, CR)
-    })
+	        # H = crossprod(CL) + crossprod(CR)
+	        # compute residual degrees of freedom as if using H, but use only CL and CR
+	        rdf_from_matrices(CL, CR)
+	    })
+	}else{
+		# H = lme4:::hatvalues.merMod(model, fullHatMatrix=TRUE) 
+		H = hatvalues(model, fullHatMatrix=TRUE)   
+
+		# number of samples
+		n = nrow(H) 
+
+		# I = diag(1, n)
+		# tr((I-H) %*% (I-H))
+		rdf = n - 2*sum(diag(H)) + sum(H*H)
+	}
     rdf
 }
 

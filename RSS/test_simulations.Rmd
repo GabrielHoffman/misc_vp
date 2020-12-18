@@ -134,13 +134,12 @@ plot_grid( plotlist = figList, ncol=3)
 set.seed(1)
 # info = rbind(info, info, info)
 lvl = levels(info$Individual)
-info = droplevels(info[info$Individual %in% lvl[1:8],])
-n_genes = 1000
+info = droplevels(info[info$Individual %in% lvl[1:4],])
+n_genes = 20000
 var_true = rgamma(n_genes, 5, 1)
 # var_true[] = 10
 
 n_de = n_genes/2
-
 
 geneExpr = lapply(1:n_genes, function(j){
 
@@ -216,19 +215,17 @@ plot_grid( fig_fixed, fig_mixed)
 ## Residual degrees of freedom run time
 ```{r rdf.time, message=FALSE}
 data(varPartData)
-info = rbind(info, info, info)
-info = rbind(info, info)
-# info = rbind(info, info)
-# info = rbind(info, info)
+infoCombine = rbind(info, info, info)
+infoCombine = rbind(infoCombine, infoCombine)
 
-lvl = levels(info$Individual)
+lvl = levels(infoCombine$Individual)
 
 n_reps = 20
 
 df_time = lapply(2:25, function(k){
 
   message("\rk = ",k)
-  infoSub = droplevels(info[info$Individual %in% lvl[1:k],])
+  infoSub = droplevels(infoCombine[infoCombine$Individual %in% lvl[1:k],])
 
   beta_Tissue = rnorm(nlevels(infoSub$Tissue))
   beta_ID = rnorm(nlevels(infoSub$Individual))
@@ -238,13 +235,13 @@ df_time = lapply(2:25, function(k){
     model.matrix(~0+Individual, infoSub) %*% beta_ID +   
     model.matrix(~0+Tissue, infoSub) %*% beta_Tissue + 
     model.matrix(~0+Batch, infoSub) %*% beta_Batch +
-    rnorm(nrow(infoSub), 0, sd=sqrt(var_true[j])) 
+    rnorm(nrow(infoSub), 0, sd=1) 
  
   fit = lmer(y ~ Age + (1|Batch) + (1|Tissue) + (1|Individual), infoSub)    
 
   data.frame(N          = nrow(infoSub), 
             rdf.merMod  = system.time(replicate(n_reps, rdf.merMod(fit)))[3],
-            rdf.naive   = system.time(replicate(n_reps, rdf.naive(fit)))[3])
+            rdf.naive   = system.time(replicate(n_reps, rdf.merMod(fit, "quadratic")))[3])
 })
 df_time = do.call(rbind, df_time)
 
@@ -294,9 +291,6 @@ x = seq(0, max(c(max(df$value), max(fit_mm$df.residual[i])*1.5)), length.out=100
 df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual[i] ))
 
 ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Mixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) 
-
-
-
 ```
 
 ```{r est.sigma, fig.width=8, fig.height=20}
@@ -367,17 +361,82 @@ shrinkageMetric( fit_lm$sigma^2, fit_eb$s2.post )
 
 shrinkageMetric( fit_mm$sigma^2, fit_eb_mm_mod$s2.post )
 
+```
 
+```{r ebayes.test}
 
+# original
+# out$t <- coefficients / stdev.unscaled / sqrt(out$s2.post)
+# df.total <- df.residual + out$df.prior
+# df.pooled <- sum(df.residual,na.rm=TRUE)
+# df.total <- pmin(df.total,df.pooled)
+# out$df.total <- df.total
+# out$p.value <- 2*pt(-abs(out$t),df=df.total)
 
+eb = function(fiteb, df, coef){
 
+  df.test = df[,coef]
+  df.total <- df.test + fiteb$df.prior
 
+  tstat = with(fiteb, coefficients / stdev.unscaled / sqrt(s2.post))
+  p.value = 2*pt(-abs(tstat[,coef]),df=df.total )
+  p.value
+}
 
+de_oracle = function(fit, df, coef, var_true){
 
-
+  df.test = df[,coef]
+  tstat = with(fit, coefficients / stdev.unscaled / sqrt(var_true))
+  p.value = 2*pt(-abs(tstat[,coef]),df=df.test )
+  p.value
+}
 
 
 ```
+
+```{r aupr, eval=TRUE}
+
+true_de = rep(0, n_genes)
+true_de[1:n_de] = 1
+
+coef = "Age"
+p.fit_eb = topTable(fit_eb, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p.fit_eb), true_de, curve=TRUE )
+pr$auc.integral
+
+p.fit_mm = topTable(fit_mm, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p.fit_mm), true_de, curve=TRUE )
+pr$auc.integral
+
+
+p.fit_eb_mm_mod = topTable(fit_eb_mm_mod, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p.fit_eb_mm_mod), true_de, curve=TRUE )
+pr$auc.integral
+
+p.mm.eb = eb( fit_eb_mm_mod, df.residual.orig, coef)
+pr = pr.curve( -log10(p.mm.eb), true_de, curve=TRUE )
+pr$auc.integral
+
+
+p.oracle = de_oracle(fit_eb_mm_mod, df.residual.orig, coef, var_true)
+pr = pr.curve( -log10(p.oracle), true_de, curve=TRUE )
+pr$auc.integral
+
+
+sum(p.fit_eb[true_de==0] < 0.05) / sum(true_de==0)
+sum(p.fit_mm[true_de==0] < 0.05) / sum(true_de==0)
+sum(p.fit_eb_mm_mod[true_de==0] < 0.05) / sum(true_de==0)
+sum(p.mm.eb[true_de==0] < 0.05) / sum(true_de==0)
+sum(p.oracle[true_de==0] < 0.05) / sum(true_de==0)
+
+
+
+# plot(-log10(p.oracle), -log10(p))
+
+
+```
+
+
 
 
 ```{r fpr}
@@ -405,30 +464,6 @@ sum(p.new < 0.05) / length(p.new)
 
 p.new = 2*pt(abs(fit_eb_mm_mod$t[,coef]), df=df.residual.orig[,coef] + fit_eb_mm_mod$df.prior, lower.tail=FALSE)
 sum(p.new < 0.05) / length(p.new)
-```
-
-```{r aupr, eval=FALSE}
-
-true_de = rep(0, nrow(geneExpr))
-true_de[1:n_de] = 1
-
-coef = "Age"
-p = topTable(fit_eb, coef, number=Inf, sort.by="none")[,'P.Value']
-pr = pr.curve( -log10(p), true_de, curve=TRUE )
-pr$auc.integral
-
-p = topTable(fit_mm, coef, number=Inf, sort.by="none")[,'P.Value']
-pr = pr.curve( -log10(p), true_de, curve=TRUE )
-pr$auc.integral
-
-
-p = topTable(fit_eb_mm_mod, coef, number=Inf, sort.by="none")[,'P.Value']
-pr = pr.curve( -log10(p), true_de, curve=TRUE )
-pr$auc.integral
-
-
-
-
 ```
 
 
