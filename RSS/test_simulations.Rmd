@@ -2,7 +2,7 @@
 title: "Linear mixed models with empirical Bayes"
 subtitle: ''
 author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
-date: "Run on `r Sys.Date()`"
+date: "Run on `r Sys.time()`"
 documentclass: article
 output: 
   html_document:
@@ -37,14 +37,11 @@ library(ggplot2)
 library(BiocParallel)
 library(lmerTest)
 library(knitr)
-library(sparsesvd)
 library(tidyverse)
 library(kableExtra)
 library(PRROC)
 library(cowplot)
 })
-
-data(varPartData)
 
 options(xtable.type="html")
 
@@ -63,7 +60,7 @@ options(markdown.HTML.stylesheet = 'css/custom.css')
 
 ```{r define, echo=FALSE, cache=FALSE}
 
-source("rdf_functions.R")
+source("/Users/gabrielhoffman/workspace/repos/variancePartition/R/rdf_functions.R")
 
 
 
@@ -102,10 +99,40 @@ dmixchisq = function(x, df){
 dscchisq = function(x, a, b){
   dgamma(x, b/2, 1/(2*a))
 }
+
+
+
+rdf.gamma.lambda = function(lambda, method = c("mean", "mode")){
+
+  a = sum(lambda^2) / sum(lambda)
+  b = sum(lambda)^2 /sum(lambda^2)
+
+  shape = b/2
+  rate = 1/(2*a)
+  scale = 1/rate
+
+  # get mean and mode of gamma distribution
+  # convert to mode of a chi-square distribution
+  df = switch( method, 
+      "mean" = a * b, 
+      "mode" = scale*(shape-1) + 2)
+  df
+}
+
 ```
 
+# plot(density(value))
+# lines(x, dgamma(x, b/2, 1/(2*a)), col="blue")
+
+
+
+
 # Mixture of chi-squares
-Let $x$ be a weighted mixture of $n$ $\chi^2_1$ values so that $x \sim \sum_{i=1}^n \lambda_i \chi^2_1$.  This distribution has $n$ parameters and an expectation $\sum_{i=1}^n \lambda_i$.  It can be approximated using a single $\chi^2_\nu$ by setting $\nu = \sum_{i=1}^n \lambda_i$.  Here 100000 values were sampled from a weighted mixture of $\chi^2_1$ with $\lambda_i = 0.5$ and the kernel density is plotted in black for multiple values of $n$. The $\chi^2_\nu$ approximation is shown in red for each value of $n$.     
+Let $x$ be a weighted mixture of $n$ $\chi^2_1$ values so that $x \sim \sum_{i=1}^n \lambda_i \chi^2_1$.  This distribution has $n$ parameters and an expectation $\sum_{i=1}^n \lambda_i$.  It can be approximated using a single $\chi^2_\nu$ by setting $\nu = \sum_{i=1}^n \lambda_i$.  Here 100,000 values were sampled from a weighted mixture of $\chi^2_1$ with $\lambda_i = 0.5$ and the kernel density is plotted in black for multiple values of $n$. The $\chi^2_\nu$ approximation matching the mean is shown in red for each value of $n$.
+
+<!---
+ The $\chi^2_\nu$ approximation matching the mode is shown in blue. 
+ --->
 
 ```{r mixture_of_chisq, fig.width=10}
 x = seq(0, 30, length.out=1000)
@@ -120,96 +147,18 @@ figList = lapply( c(2, 5, 7, 10, 20, 30), function(n){
     sum(lambda * rchisq(length(lambda), 1))
     })
   
-  df2 = data.frame(x=x, density = dchisq(x, sum(lambda)))
+  df.mean = sum(lambda)
+  # df.est = rdf.gamma.lambda( lambda, "mean")
+  # df.mode = rdf.gamma.lambda( lambda, "mode") 
+
+  df2 = data.frame(Method = "mean", x=x, density = dchisq(x, df.mean))
+  # df2 = rbind(df2, data.frame(Method = "mode", x=x, density = dchisq(x, df.mode)))
   df2 = df2[df2$density > 1e-3,]
 
-  ggplot(data.frame(value = value), aes(value)) + geom_density() + theme_classic() + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1)  + geom_line(data=df2, aes(x, density), color='red', linetype="dashed") + ggtitle(paste0('n=',n)) + scale_y_continuous(expand=c(0,0), limits=c(0, NA)) + scale_x_continuous(expand=c(0,0), limits=c(0, NA))
+  ggplot(data.frame(value = value), aes(value)) + geom_density() + theme_classic() + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1, legend.position="none")  + geom_line(data=df2, aes(x, density, color=Method), linetype="dashed") + ggtitle(paste0('n=',n)) + scale_y_continuous(expand=c(0,0), limits=c(0, NA)) + scale_x_continuous(expand=c(0,0), limits=c(0, NA)) + scale_color_manual(values=c("red"))
 })
 
 plot_grid( plotlist = figList, ncol=3)
-```
-
-# Run simulatuions
-```{r simulate.data}
-set.seed(1)
-# info = rbind(info, info, info)
-lvl = levels(info$Individual)
-info = droplevels(info[info$Individual %in% lvl[1:4],])
-n_genes = 20000
-var_true = rgamma(n_genes, 5, 1)
-# var_true[] = 10
-
-n_de = n_genes/2
-
-geneExpr = lapply(1:n_genes, function(j){
-
-  b = ifelse(j <= n_de, .4, 0)
-
-  beta_Tissue = rnorm(nlevels(info$Tissue))
-  beta_ID = rnorm(nlevels(info$Individual))
-  beta_Batch = rnorm(nlevels(info$Batch))
-
-  y = model.matrix(~0+Age, info) * b +
-    model.matrix(~0+Individual, info) %*% beta_ID +   
-    model.matrix(~0+Tissue, info) %*% beta_Tissue + 
-    model.matrix(~0+Batch, info) %*% beta_Batch +
-    rnorm(nrow(info), 0, sd=sqrt(var_true[j])) 
-  t(y)
-  })
-geneExpr = do.call(rbind, geneExpr)
-rownames(geneExpr) = paste0('gene_', 1:nrow(geneExpr))
-
-# Fit models
-form = ~ Age + (1|Individual) + (1|Tissue) + (1|Batch)
-# form = ~ (1|Individual)
-
-# fixed effects
-dsgn = model.matrix(subbars(form), info)
-fit_lm = lmFit( geneExpr, dsgn)
-
-REML = TRUE
-# linear mixed model
-fit_mm = dream( geneExpr, form, info, BPPARAM=SnowParam(6), REML=REML)
-
-# define RDF for LMM
-res = fitVarPartModel( geneExpr, form, info, fxn = rdf.merMod, REML=REML, BPPARAM=SerialParam() )
-
-# df.values = sapply(res, function(x) x$df)
-df.values = unlist(res)
-df.residual.orig = fit_mm$df.residual 
-fit_mm$df.residual = df.values
-
-# rdf.shape = sapply(res, function(x) x$shape)
-# rdf.scale = sapply(res, function(x) x$scale)
-```
-
-# Residual degrees of freedom
-
-```{r plot.fixed, fig.height=4, fig.width=9}
-# Fixed effect model
-# fit$sigma^2 is already corrected by n-1
-rdf = nrow(info) - ncol(fit_lm$design)
-RSS = apply(residuals(fit_lm, geneExpr), 1, function(x) sum(x^2))
-
-ggtheme = theme_bw(16) + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1) 
-
-df = data.frame(value = RSS/var_true)
-x = seq(0, max(df$value), length.out=10000)
-df2 = data.frame(x=x, value = dchisq(x, df=rdf))
-
-fig_fixed = ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Linear model") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2))
-
-## Mixed model
-n = nrow(info)
-RSS = apply(fit_mm$residuals, 1, function(x) sum(x^2))
-
-df = data.frame(value = RSS/var_true)
-x = seq(0, max(df$value), length.out=10000)
-df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual ))
-
-fig_mixed = ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Linear mixed model") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) 
-
-plot_grid( fig_fixed, fig_mixed)
 ```
 
 ## Residual degrees of freedom run time
@@ -251,59 +200,133 @@ df_melt$variable = factor(df_melt$variable, c('rdf.naive', 'rdf.merMod'))
 xmax = max(df_melt$N) * 1.05
 ymax = max(df_melt$value / n_reps * 20000) * 1.05
 ggplot(df_melt, aes(N, value / n_reps * 20000, color=variable)) + geom_point() + theme_classic() + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1) + geom_smooth(formula = y ~ x + I(x^2), method="lm", se=FALSE) + ylab("Time (seconds for 20K genes)") + scale_color_manual(name = "Method", values=c('red2', 'dodgerblue')) + scale_x_continuous(expand=c(0, 0), limits=c(0, xmax)) + scale_y_continuous(expand=c(0, 0), limits=c(0, ymax)) + xlab("Sample size")
+
 ```
 
 
-```{r test, eval=FALSE}
-# estimate sigma
-fit@devcomp$cmp['sigmaML']
-sqrt(fit@devcomp$cmp['pwrss'] / fit@devcomp$dim['n'])
-sqrt(fit@devcomp$cmp['pwrss'] / rdf.approx(fit))
 
-f = function(fit){
-  # sqrt(fit@devcomp$cmp['pwrss'] / rdf.approx(fit))
-  fit@devcomp$cmp['wrss']
-}
+# Run simulatuions
+```{r simulate.data}
+set.seed(1)
+data(varPartData)
+info$Age = model.matrix(~0 + Individual, info) %*% rnorm(nlevels(info$Individual)) + rnorm(nrow(info))
 
-res2.RSS = fitVarPartModel( geneExpr, form, info, fxn = f, REML=REML, BPPARAM=SnowParam(6) )
-RSS = unlist(res2.RSS)
+# info = rbind(info, info, info)
+lvl = levels(info$Individual)
+# idx = with(info,Individual %in% lvl[1:3] & Tissue %in% c("A", "B"))
+idx = with(info,Individual %in% lvl[1:3])
+info = droplevels(info[idx,])
+n_genes = 2000
+var_true = 1/rgamma(n_genes, 5, 1)
+# var_true[] = 10
 
-i = 1:length(RSS)
-df = data.frame(value = RSS[i]/var_true[i])
+n_de = floor(n_genes/4)
+
+geneExpr = lapply(1:n_genes, function(j){
+
+  b = ifelse(j <= n_de, .5, 0)
+
+  beta_Tissue = rnorm(nlevels(info$Tissue), 0, 2)
+  beta_ID = rnorm(nlevels(info$Individual), 0, 2)
+  beta_Batch = rnorm(nlevels(info$Batch), 0, 1)
+
+  y = model.matrix(~0+Age, info) * b +
+    model.matrix(~0+Individual, info) %*% beta_ID +   
+    # model.matrix(~0+Tissue, info) %*% beta_Tissue + 
+    # model.matrix(~0+Batch, info) %*% beta_Batch +
+    rnorm(nrow(info), 0, sd=sqrt(var_true[j])) 
+  t(y)
+  })
+geneExpr = do.call(rbind, geneExpr)
+rownames(geneExpr) = paste0('gene_', 1:nrow(geneExpr))
+
+# Fit models
+# form = ~ Age + (1|Individual) + (1|Tissue) + (1|Batch)
+form = ~ Age + (1|Individual)
+
+# variancePartition analysis
+vp = fitExtractVarPartModel( geneExpr, form, info, BPPARAM=SnowParam(6))
+
+# fixed effects
+dsgn = model.matrix(subbars(form), info)
+fit_lm = lmFit( geneExpr, dsgn)
+
+# linear mixed model
+fit_mm = dream( geneExpr, form, info, BPPARAM=SnowParam(6, progressbar=TRUE),  ddf = "Kenward-Roger")
+
+# define RDF for LMM
+# res = fitVarPartModel( geneExpr, form, info, fxn = rdf.merMod, BPPARAM=SerialParam() )
+
+# df.values = unlist(res)
+# df.residual.orig = fit_mm$df.residual 
+# fit_mm$df.residual = df.values
+
+
+# res.gamma = fitVarPartModel( geneExpr, form, info, fxn = rdf.gamma, BPPARAM=SerialParam() )
+
+# df.values = unlist(res.gamma)
+# df.residual.orig = fit_mm$df.residual 
+# fit_mm$df.residual = df.values
+
+
+a = dream( geneExpr[1:100,], form, info, BPPARAM=SerialParam(), REML=FALSE )
+
+
+b = fitVarPartModel( geneExpr[1:100,], form, info, fxn = rdf.merMod, BPPARAM=SerialParam(), REML=TRUE )
+
+
+cbind(a$rdf, unlist(b))
+
+
+```
+
+
+
+```{r vp}
+plotVarPart(sortCols(vp))
+```
+
+# Residual degrees of freedom
+
+```{r plot.fixed, fig.height=4, fig.width=9}
+# Fixed effect model
+# fit$sigma^2 is already corrected by n-1
+rdf = nrow(info) - ncol(fit_lm$design)
+RSS = apply(residuals(fit_lm, geneExpr), 1, function(x) sum(x^2))
+
+ggtheme = theme_bw(16) + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1) 
+
+df = data.frame(value = RSS/var_true)
 x = seq(0, max(df$value), length.out=10000)
-df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual[i] ))
+df2 = data.frame(x=x, value = dchisq(x, df=rdf))
 
-ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Mixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) + xlim(200, 350)
+fig_fixed = ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Linear model") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2))
 
+## Mixed model
+n = nrow(info)
+RSS = apply(fit_mm$residuals, 1, function(x) sum(x^2))
 
-f = function(fit){
-  # sqrt(fit@devcomp$cmp['pwrss'] / rdf.approx(fit))
-  # fit@devcomp$cmp['pwrss']
-  sigma(fit)^2 *  fit@devcomp$dims['nmp']
-}
+df = data.frame(value = RSS/var_true)
+x = seq(0, max(df$value), length.out=10000)
+df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual ))
 
-res2.RSS.p = fitVarPartModel( geneExpr, form, info, fxn = f, REML=REML, BPPARAM=SnowParam(6) )
-RSS.p = unlist(res2.RSS.p)
+fig_mixed = ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Linear mixed model") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) 
 
-i = 1:length(RSS)
-df = data.frame(value = RSS.p[i]/var_true[i])
-x = seq(0, max(c(max(df$value), max(fit_mm$df.residual[i])*1.5)), length.out=10000)
-df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$df.residual[i] ))
-
-ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Mixed effect RSS /  true variance") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) 
+plot_grid( fig_fixed, fig_mixed)
 ```
 
-```{r est.sigma, fig.width=8, fig.height=20}
+```{r est.sigma, fig.width=8, fig.height=16}
 # Create fit_mm_mod which is like fit_mm except sigma is estimated as RSS/rdf
 fit_mm_mod = fit_mm
-RSS = apply(fit_mm$residuals, 1, function(x) sum(x^2))
-sigSqm = RSS / fit_mm$df.residual 
-fit_mm_mod$sigma = sqrt(sigSqm)
-
+# RSS = apply(fit_mm$residuals, 1, function(x) sum(x^2))
+# sigSqm = RSS / fit_mm$df.residual 
+# fit_mm_mod$sigma = sqrt(sigSqm)
+fit_mm_mod$df.residual = fit_mm_mod$rdf
+df.residual.orig = fit_mm$df.residual[,'Age']
 
 # apply Emprical Bayes 
 fit_eb = limma::eBayes(fit_lm)
-fit_eb_mm = limma::eBayes(fit_mm)
+fit_eb_mm = eBayes(fit_mm)
 fit_eb_mm_mod = limma::eBayes(fit_mm_mod)
 
 # Empirical Bayes results
@@ -317,7 +340,7 @@ fit_eb_mm_mod$s2.prior
 
 
 
-df = data.frame(value = fit_mm$df.residual)
+df = data.frame(value = fit_mm$rdf)
 fig_rdf = ggplot(df, aes(value)) + geom_density() + ggtheme + xlab("Residual degrees of freedom")
 
 # variances from linear model
@@ -342,15 +365,17 @@ plot_grid( fig_rdf, fig_fixed, fig_mixed, fig_MSE, ncol=1)
 
 
 
-df = data.frame(LM = fit_lm$sigma^2, EB = fit_eb$s2.post)
+df = data.frame(LM = fit_lm$sigma^2, EB = fit_eb$s2.post, TrueVar = var_true)
 lim = max(c(max(df$LM), max(df$EB)))
-fig_shrink_fixed = ggplot(df, aes(LM, EB)) + geom_point() + ggtheme + geom_abline(color="red") + xlim(0, lim) + ylim(0, lim) + geom_smooth(method="lm") + ggtitle("Fixed effect model")
+fig_shrink_fixed = ggplot(df, aes(LM, EB)) + geom_point() + ggtheme + geom_abline(color="red") + xlim(0, lim) + ylim(0, lim) + geom_smooth(method="lm") + xlab("Linear model") + ylab("Emprical Bayes") + ggtitle("Residual variance estimates")
 
 lm(fit_eb$s2.post ~ fit_lm$sigma^2)
 
-df = data.frame(MM = fit_mm$sigma^2, EB = fit_eb_mm_mod$s2.post)
+df = data.frame(MM = fit_mm$sigma^2, EB = fit_eb_mm_mod$s2.post, TrueVar = var_true)
 lim = max(c(max(df$MM), max(df$EB)))
-fig_shrink_mixed = ggplot(df, aes(MM, EB)) + geom_point() + ggtheme + geom_abline(color="red") + xlim(0, lim) + ylim(0, lim) + geom_smooth(method="lm") + ggtitle("Mixed effect model")
+fig_shrink_mixed = ggplot(df, aes(MM, EB)) + geom_point() + ggtheme + geom_abline(color="red") + xlim(0, lim) + ylim(0, lim) + geom_smooth(method="lm") + xlab("Mixed effect model") + ylab("Emprical Bayes") + ggtitle("Residual variance estimates")
+
+
 
 plot_grid(fig_shrink_fixed, fig_shrink_mixed)
 
@@ -394,44 +419,88 @@ de_oracle = function(fit, df, coef, var_true){
 
 ```
 
-```{r aupr, eval=TRUE}
+y = t(t(geneExpr[1,]))
+fit = lm( y ~ Age + Tissue, info)
+summary(fit)
+
+```{r aupr}
 
 true_de = rep(0, n_genes)
 true_de[1:n_de] = 1
 
 coef = "Age"
-p.fit_eb = topTable(fit_eb, coef, number=Inf, sort.by="none")[,'P.Value']
-pr = pr.curve( -log10(p.fit_eb), true_de, curve=TRUE )
+
+tstat = with(fit_eb, coefficients / stdev.unscaled / sigma)
+p.fit = 2*pt(-abs(tstat[,coef]), df=fit_eb$df.residual )
+pr = pr.curve( -log10(p.fit)[true_de==1], -log10(p.fit)[true_de==0], curve=TRUE, rand.compute=TRUE)
 pr$auc.integral
 
+
+p.fit_eb = topTable(fit_eb, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p.fit_eb)[true_de==1], -log10(p.fit_eb)[true_de==0], curve=TRUE, rand.compute=TRUE )
+pr$auc.integral
+
+
+
+
 p.fit_mm = topTable(fit_mm, coef, number=Inf, sort.by="none")[,'P.Value']
-pr = pr.curve( -log10(p.fit_mm), true_de, curve=TRUE )
+pr = pr.curve( -log10(p.fit_mm)[true_de==1], -log10(p.fit_mm)[true_de==0], curve=TRUE )
+pr$auc.integral
+
+
+p.fit_eb_mm = topTable(fit_eb_mm, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p.fit_eb_mm)[true_de==1],  -log10(p.fit_eb_mm)[true_de==0], curve=TRUE )
 pr$auc.integral
 
 
 p.fit_eb_mm_mod = topTable(fit_eb_mm_mod, coef, number=Inf, sort.by="none")[,'P.Value']
-pr = pr.curve( -log10(p.fit_eb_mm_mod), true_de, curve=TRUE )
+pr = pr.curve( -log10(p.fit_eb_mm_mod)[true_de==1],  -log10(p.fit_eb_mm_mod)[true_de==0], curve=TRUE )
 pr$auc.integral
 
 p.mm.eb = eb( fit_eb_mm_mod, df.residual.orig, coef)
-pr = pr.curve( -log10(p.mm.eb), true_de, curve=TRUE )
+pr = pr.curve( -log10(p.mm.eb)[true_de==1],  -log10(p.mm.eb)[true_de==0], curve=TRUE )
+pr$auc.integral
+
+# Compute moderated t-statistics from Yu, et al, 2019
+fit_mm_fmt = variancePartition:::eBayesFMT(fit_mm, info, 'Individual')
+p.fit_mm_fmt = topTable(fit_mm_fmt, coef, number=Inf, sort.by="none")[,'P.Value']
+a = -log10(p.fit_mm_fmt)[true_de==1]
+b = -log10(p.fit_mm_fmt)[true_de==0]
+pr = pr.curve( a[!is.na(a)], b[!is.na(b)], curve=TRUE )
 pr$auc.integral
 
 
 p.oracle = de_oracle(fit_eb_mm_mod, df.residual.orig, coef, var_true)
-pr = pr.curve( -log10(p.oracle), true_de, curve=TRUE )
+pr = pr.curve( -log10(p.oracle)[true_de==1], -log10(p.oracle)[true_de==0], curve=TRUE, rand=TRUE )
 pr$auc.integral
 
 
+
+
+sum(p.fit[true_de==0] < 0.05) / sum(true_de==0)
 sum(p.fit_eb[true_de==0] < 0.05) / sum(true_de==0)
 sum(p.fit_mm[true_de==0] < 0.05) / sum(true_de==0)
+sum(p.fit_eb_mm[true_de==0] < 0.05) / sum(true_de==0)
 sum(p.fit_eb_mm_mod[true_de==0] < 0.05) / sum(true_de==0)
 sum(p.mm.eb[true_de==0] < 0.05) / sum(true_de==0)
 sum(p.oracle[true_de==0] < 0.05) / sum(true_de==0)
 
+tab_mm = topTable(fit_mm, coef, number=Inf, sort.by="none")
+tab_mm_eb = topTable(fit_eb_mm_mod, coef, number=Inf, sort.by="none")
+
+# Effective sample size
+t_ratio = tab_mm_eb[,'t']^2 / tab_mm[,'t']^2 
+
+t_ratio[true_de == 1]
+
+i = which.max(t_ratio[true_de == 1]
+)
+tab_mm[i,]
+tab_mm_eb[i,]
 
 
-# plot(-log10(p.oracle), -log10(p))
+
+
 
 
 ```
@@ -439,7 +508,7 @@ sum(p.oracle[true_de==0] < 0.05) / sum(true_de==0)
 
 
 
-```{r fpr}
+```{r fpr, eval=FALSE}
 fit_eb$df.total[1:3]
 fit_eb_mm$df.total[1:3]
 
