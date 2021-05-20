@@ -111,7 +111,7 @@ C = cor(df2[,-1], use="pairwise.complete")
 # Convert to tall matrix
 df_pw = mat_to_long(C, "Sample_1", "Sample_2", "correlation")
 df_pw = df_pw[!(df_pw[,1] == df_pw[,2]),]
-df_pw$Status = df_pw$correlation > 0.9
+df_pw$Match = df_pw$correlation > 0.9
 
 # write to file
 write.table(df_pw, file=opt$outfile, row.names=FALSE, quote=FALSE, sep="\t")
