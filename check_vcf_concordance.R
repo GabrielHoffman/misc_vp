@@ -1,3 +1,5 @@
+#! /usr/bin/env Rscript
+#
 # Gabriel Hoffman
 # May 20, 2021
 #
@@ -6,7 +8,7 @@
 # sequencing, while NGScheckmate fails with genotype data
 # This code assumes only 1 sample per VCF
 
-# R --args --snpBed /sc/arion/projects/H_PBG/REFERENCES/GRCh38/NGSCheckmate/hglft_genome_6702d_cdce40.bed \
+# check_vcf_concordance.R --snpBed /sc/arion/projects/H_PBG/REFERENCES/GRCh38/NGSCheckmate/hglft_genome_6702d_cdce40.bed \
 # --vcfList /sc/arion/projects/CommonMind/shan/MOLECULAR_PROFILING/ngscheckmate/final_vcfs.lst \
 # --outfile correlation.tsv
 
