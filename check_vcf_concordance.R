@@ -18,6 +18,7 @@ library(getopt)
 spec = matrix(c(
       'snpBed', 	'd', 1, "character",
       'vcfList',	'v', 1, "character",
+      'nthreads',	'n', 1, "numeric",
       'outfile',	'o', 1, "character"
     ), byrow=TRUE, ncol=4)
 opt = getopt(spec)
@@ -28,6 +29,10 @@ if( ! file.exists(opt$snpBed) ){
 
 if( ! file.exists(opt$vcfList) ){
 	stop("File does not exist:", opt$snpBed)
+}
+
+if( is.null(opt$nthreads)){
+	opt$nthreads = 1
 }
 
 message("Loading libraries...")
