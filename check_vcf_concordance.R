@@ -130,7 +130,7 @@ dosageData = mclapply( files, function(file){
 
 	# return variant ID's and dosages
 	data.frame( ID = names(gr2)[idx], Dosage[idx,,drop=FALSE])
-	}, mc.cores=24)
+	}, mc.cores=opt$nthreads)
 
 # Merge, keeping all variates
 message("Merging dosages...")
