@@ -35,6 +35,11 @@ if( is.null(opt$nthreads)){
 	opt$nthreads = 1
 }
 
+
+if( is.null(opt$outfile)){
+	stop("Must specify --outfile")
+}
+
 message("Loading libraries...")
 suppressPackageStartupMessages({
 library(VariantAnnotation)
