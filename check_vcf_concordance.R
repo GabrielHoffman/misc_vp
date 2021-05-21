@@ -49,14 +49,11 @@ library(data.table)
 library(parallel)
 library(comperes)
 library(R.utils)
-# library(Repitools)
 })
-
-# files = dir("temp", pattern="*.vcf.gz$", full.names=TRUE)
 
 files = read.table(opt$vcfList)$V1
 
-# snpFile = "/sc/arion/projects/H_PBG/REFERENCES/GRCh38/NGSCheckmate/hglft_genome_6702d_cdce40.bed"
+# read in target SNP data
 gr = with(fread(opt$snpBed), GRanges(V1, IRanges(V2, V3, name=V4, REF=V5, ALT=V6)))
 gr = keepSeqlevels(gr, paste0("chr", 1:22), pruning.mode="coarse")
 gr$ID = with(gr, paste0(seqnames, ':', end, ':', REF, ':', ALT))
@@ -148,7 +145,9 @@ dosageData = mclapply( files, function(file){
 message("Merging dosages...")
 df_merge = Reduce(function(x,y) merge(x = x, y = y, by = "ID", all=TRUE), dosageData)
 
+
 # Compute pairwise correlation
+# uses fast method to evaluate all pairs
 message("Evaluating concordance...")
 C = cor(df_merge[,-1], use="pairwise.complete")
 
@@ -156,6 +155,13 @@ C = cor(df_merge[,-1], use="pairwise.complete")
 df_pw = mat_to_long(C, "Sample_1", "Sample_2", "correlation")
 df_pw = df_pw[!(df_pw[,1] == df_pw[,2]),]
 df_pw$Match = df_pw$correlation > 0.9
+
+# count number of non-NA's between each pair of samples
+C_counts = crossprod(!is.na(df_merge[,-1]))
+df_pw_counts = mat_to_long(C_counts, "Sample_1", "Sample_2", "N")
+
+# Merge correlation and counts
+df_pw = merge(df_pw, df_pw_counts, by=c("Sample_1", "Sample_2"))
 
 # write to file
 message("Writing to file...")
