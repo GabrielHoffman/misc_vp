@@ -37,7 +37,6 @@ if( is.null(opt$nthreads)){
 	opt$nthreads = 1
 }
 
-
 if( is.null(opt$outfile)){
 	stop("Must specify --outfile")
 }
@@ -95,6 +94,12 @@ isSmall = function(file, cutoff = 200){
 	sizeMB < cutoff
 }
 
+# check that files exist
+res = sapply( files, function(file){
+	if( ! file.exists(file) ){
+		stop("VCF file does not exist:\n", file)
+	}
+	})
 
 
 # for each VCF
