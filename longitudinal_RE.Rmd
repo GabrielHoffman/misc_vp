@@ -1,7 +1,7 @@
 
 ---
 title: "Random effects for longitudinal data"
-subtitle: ""
+subtitle: "[source](https://github.com/GabrielHoffman/misc_vp/blob/master/longitudinal_RE.Rmd)"
 author:
 - name: "[Gabriel Hoffman](http://gabrielhoffman.github.io)"
   affiliation: | 

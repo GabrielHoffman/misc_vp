@@ -62,7 +62,7 @@ rdf_from_matrices = function(A,B){
 	# rdf = n - 2*tr(H) + sum(H*H)
 
 	# Define trace function	
-	tr = function(A) sum(diag(A))
+	# tr = function(A) sum(diag(A))
 
 	# Compute SVD of A.
 	# if A is a sparseMatrix, sparsesvd() is substantially faster
@@ -95,19 +95,30 @@ rdf_from_matrices = function(A,B){
 	# 	s_a = sqrt(dcmp$values)
 	# }
 
+	# Compute SVD of sparse matrix
+	# using eigen decomposition of crossproduct
+	# Then construct V^T from this.
+
 	# A
+	#####
 	dcmp_A = eigen(tcrossprod(A))
 
+	# drop eigen-values less than tol
 	tol = 1e-12
 	idx = which(dcmp_A$values > tol)
 	U = dcmp_A$vectors[,idx,drop=FALSE]
 	s_a = sqrt(dcmp_A$values[idx])
-	VT = crossprod(U, A) / s_a
+	# VT = crossprod(U, A) / s_a
 
 	# B
+	#####
 	dcmp_B = eigen(tcrossprod(B), only.values=TRUE)
-	idx = which(dcmp_B$values > tol)
-	s_b = sqrt(dcmp_B$values[idx])
+	# idx = which(dcmp_B$values > tol)
+	# s_b = sqrt(dcmp_B$values[idx])
+	s_b = sqrt(dcmp_B$values)
+
+	# ?????????????/
+	# is crossprod(tcrossprod(B, VT)) is best way to do this
 
 	# system.time(replicate(100, svd(B, nu=0)))
 	# system.time(replicate(100, sparsesvd(B, rank=nrow(B))))
@@ -120,12 +131,112 @@ rdf_from_matrices = function(A,B){
 	# sum(s_a^4) + 2*tr( diag(s_a^2) %*% crossprod(Q)) + sum(s_b^4) 
 	# sum(s_a^4) + 2*sum( diag(s_a^2) * crossprod(B %*% V)) + sum(s_b^4) 
 	# tr_H_H = sum(s_a^4) + 2*tr( (s_a^2) * crossprod(B %*% V)) + sum(s_b^4) 
-	tr_H_H = sum(s_a^4) + 2*tr( (s_a^2) * crossprod(tcrossprod(B, VT))) + sum(s_b^4) 
+	# tr_H_H = sum(s_a^4) + 
+	# 		2*tr( (s_a^2) * crossprod(tcrossprod(B, VT))) + 
+	# 		sum(s_b^4) 
+
+	G = as.matrix(tcrossprod(B,A) %*% U)
+
+	tr_H_H = sum(s_a^4) + 
+			2*sum(G*G) + 
+			sum(s_b^4)  
 
 	n = ncol(A)
 
 	n - 2 * (sum(s_a^2) + sum(s_b^2)) + tr_H_H
 }
+
+
+
+# system.time(replicate(1000, rdf_from_matrices(CL, CR)))
+
+# VT = crossprod(U, A) / s_a
+# tr( (s_a^2) * crossprod(tcrossprod(B, VT)))
+
+
+
+# tr( (s_a^2) * crossprod(tcrossprod(B, crossprod(U, A) / s_a)))
+
+
+# tr( (s_a^2) * crossprod(t(t(tcrossprod(B,A) %*% U)/s_a)))
+
+
+
+# tr( (s_a^2) * tcrossprod(t(tcrossprod(B,A) %*% U)/s_a))
+
+
+# C = t(tcrossprod(B,A) %*% U) / s_a
+
+# tr( (s_a^2) * tcrossprod(C))
+
+
+# tr( crossprod(s_a*C))
+
+
+# G = s_a*C
+# sum(G*G)
+
+
+
+# G = tcrossprod(B,A) %*% U
+# sum(G*G)
+
+
+
+
+
+
+
+
+
+# tcrossprod(B, crossprod(U, A) / s_a)
+# B %*% t((t(U) %*% A) / s_a)
+
+# B %*% t((t(U) %*% A))
+# B %*% t(A) %*% U
+# tcrossprod(B,A) %*% U 
+# B %*% crossprod(A, U)
+
+# system.time(replicate(10000, tcrossprod(B,A) %*% U))
+# system.time(replicate(10000, B %*% crossprod(A, U)))
+
+# tcrossprod(B,A) %*% U %*% diag(1/s_a)
+
+
+# system.time(replicate(10000, tcrossprod(B,A) %*% U %*% diag(1/s_a)))
+# system.time(replicate(10000, tcrossprod(B,A) %*% U %*% Diagonal(x=1/s_a)))
+# system.time(replicate(10000,t( tcrossprod(B,A) %*% U )/s_a))
+
+# system.time(replicate(10000, sweep(tcrossprod(B,A) %*% U, 2, s_a, FUN="/")))
+
+
+
+# system.time(replicate(10000,{G = as.matrix(tcrossprod(B,A) %*% U);
+# 							sum(G*G)}))
+
+
+# system.time(replicate(10000,{G = tcrossprod(B,A) %*% U;
+# 							sum(G*G)}))
+
+
+# system.time(replicate(10000,{G = tcrossprod(B,A) %*% U;
+# 							sum(diag(crossprod(G)))}))
+
+
+# system.time(replicate(10000,{G = tcrossprod(B,A) %*% U;
+# 							sum(diag(tcrossprod(G)))}))
+
+
+
+
+# system.time(replicate(10000,{G = as.matrix(tcrossprod(B,A) %*% U)}))
+
+
+# system.time(replicate(10000,{sum(G*G)}))
+
+
+# system.time(replicate(10000, sum(diag(crossprod(G)))))
+
 
 
 #' Approximate residual degrees of freedom
@@ -138,7 +249,7 @@ rdf_from_matrices = function(A,B){
 #' @description 
 #' For a linear model with \eqn{n} samples and \eqn{p} covariates, \eqn{RSS/sigma^2 \sim \chi^2_{\nu}} where \eqn{\nu = n-p} is the residual degrees of freedom.  In the case of a linear mixed model, the distribution is no longer exactly a chi-square distribution, but can be approximated with a chi-square distribution. 
 #'
-#' Given the hat matrix, \code{H}, that maps between observed and fitted responses, the approximate residual degrees of freedom is \eqn{\nu = tr((I-H)(I-H))}.  For a linear model, this simplifies to the well known form \eqn{\nu = n - p}. In the more general case, such as a linear mixed model, the original form simplifies only to \eqn{n - 2tr(H) + tr(HH)} and is an approximation rather than being exact.  The third term here is quadratic time in the number of samples, \eqn{n} and can be computationally expensive to evalaute for larger datasets.  Here we use a linear time algorithm that takes advantage of the fact that \eqn{H} is low rank.
+#' Given the hat matrix, \code{H}, that maps between observed and fitted responses, the approximate residual degrees of freedom is \eqn{\nu = tr((I-H)(I-H))}.  For a linear model, this simplifies to the well known form \eqn{\nu = n - p}. In the more general case, such as a linear mixed model, the original form simplifies only to \eqn{n - 2tr(H) + tr(HH)} and is an approximation rather than being exact.  The third term here is quadratic time in the number of samples, \eqn{n} and can be computationally expensive to evaluate for larger datasets.  Here we develop a linear time algorithm that takes advantage of the fact that \eqn{H} is low rank.
 #'
 #' \eqn{H} is computed as \eqn{A^TA + B^TB} for \code{A=CL} and \code{B=CR} defined in the code.  Since \eqn{A} and \eqn{B} are low rank, there is no need to compute \eqn{H} directly.  Instead, the terms \eqn{tr(H)} and \eqn{tr(HH)} can be computed using only the singular value decomposition (SVD) of \eqn{A} and \eqn{B} in \eqn{O(np^2)}. Moreover, the SVD computation can take advantage of the fact that \eqn{A} is a \code{sparseMatrix}.  
 #'
@@ -201,7 +312,6 @@ rdf.merMod = function(model, method=c("linear", "quadratic")) {
 
 
 
-
 #' Shrinkage metric for eBayes
 #'
 #' Shrinkage metric for eBayes quantifying the amount of shrinkage that is applied to shrink the maximum likelihood residual variance to the empirical Bayes posterior estimate
@@ -224,39 +334,63 @@ shrinkageMetric = function( sigmaSq, s2.post){
 #'
 #' @param fit model fit from \code{dream()}
 #' @param fitEB model fit from \code{eBayes()}
-#' @param var_true array of true variance values from simulation (optional0)
+#' @param var_true array of true variance values from simulation (optional)
 #'
 #' @importFrom stats density
 #' @importFrom ggplot2
 #'
-plot_variance_estimates = function(fit, fitEB, var_true = NULL){
+plot_variance_estimates = function(fit, fitEB, var_true = NULL, xmax = quantile(fit$sigma^2, .999) ){
 
   # largest value on the x-axis
-  xmax = max(fit$sigma^2)
+  # if there is an outlier, this can be too large
+  # xmax = max(fit$sigma^2)
 
   # x values where to evaluate the scaled chi-square density
-  x = seq(0, xmax, length.out=1000)
-
-  # Empirical Bayes prior density
-  df_combine = data.frame(Method = "EB prior", x = x, 
-              y = dscchisq(x, (fitEB$s2.prior / fitEB$df.prior), fitEB$df.prior))
+  x = seq(1e-4, xmax, length.out=1000)
 
   # MLE
   d_mle = density(fit$sigma^2, from=0)
-  df_combine = rbind(df_combine, 
-    data.frame(Method = "MLE", x=d_mle$x, y = d_mle$y))
+  df_combine = data.frame(Method = "MLE", x=d_mle$x, y = d_mle$y)
 
   # EB posterior
-  d_posterior = density(fitEB$s2.post, from=0)
-  df_combine = rbind(df_combine, 
-    data.frame(Method = "EB posterior", x=d_posterior$x, y = d_posterior$y))
+  if( var(fitEB$s2.post) > 0){
+	  d_posterior = density(fitEB$s2.post, from=0)
+	  df_combine = rbind(df_combine, 
+	    data.frame(Method = "EB posterior", x=d_posterior$x, y = d_posterior$y))
+   }else{
+   	ymax = max(df_combine$y)
+		df_combine = rbind(df_combine, data.frame(Method = "EB posterior", 
+						x = c(fitEB$s2.post[1] - .01, fitEB$s2.post[1], fitEB$s2.post[1] + 0.01),
+	              		y = c(0, ymax, 0)))
+   }
 
   # True variance
   if( ! is.null(var_true) ){
-    d_true = density(var_true, from=0)
-    df_combine = rbind(df_combine, 
-      data.frame(Method = "True variance", x=d_true$x, y = d_true$y))
+  	if( var(var_true) > 0){
+	    d_true = density(var_true, from=0)
+	    df_combine = rbind(df_combine, 
+	      data.frame(Method = "True variance", x=d_true$x, y = d_true$y))
+	}else{
+		ymax = max(df_combine$y)
+		df_combine = rbind(df_combine, data.frame(Method = "True variance", 
+						x = c(var_true[1] - .01, var_true[1], var_true[1] + 0.01),
+	              		y = c(0, ymax, 0)))
+	}
   }
+
+  # Empirical Bayes prior density
+  # if df.prior is finite
+  if( is.finite(fitEB$df.prior) ){
+	  	df_combine = rbind(df_combine, data.frame(Method = "EB prior", x = x, 
+	              y = dscchisq(x, (fitEB$s2.prior / fitEB$df.prior), fitEB$df.prior)))
+	}else{
+		# if df.prior is infinite, this is a point mass
+		ymax = max(df_combine$y)
+		df_combine = rbind(df_combine, data.frame(Method = "EB prior", 
+						x = c(fitEB$s2.prior - .01, fitEB$s2.prior, fitEB$s2.prior + 0.01),
+	              		y = c(0, ymax, 0)))
+		
+	}
 
   # order methods
   df_combine$Method = factor(df_combine$Method, c("True variance", "MLE", "EB prior", "EB posterior"))

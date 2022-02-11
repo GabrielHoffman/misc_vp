@@ -108,6 +108,8 @@ df = mclapply( seq(0, .95, length.out=10), function(FVE){
         y = scale(eta) + rnorm(n1+n2, 0, sd=sqrt(1/FVE - 1))
       }
       y = scale(y)
+
+      # change to categorical response
       # y = rbinom(length(eta), 1, prob=inv.logit(eta))       
       # fit = cv.glmnet(X[1:n1,], y[1:n1], family="binomial")
 

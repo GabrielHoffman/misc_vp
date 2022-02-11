@@ -1,0 +1,101 @@
+---
+title: "Learn flow between proprtions"
+subtitle: 'Linear programming solution'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+documentclass: article
+output: 
+  html_document:
+  toc: true
+  smart: false
+vignette: >
+  %\VignetteIndexEntry{Decorrelate}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\usepackage[utf8]{inputenc}
+---
+
+
+<!--- 
+
+rmarkdown::render('flow_examples.Rmd');
+
+
+--->
+
+
+Given a count distribution at times 0 and 1, reconstruct the most parsimonious transfer in counts that explains the data
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning=FALSE,
+  message=FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  dev = c("png", "pdf"),
+  package.startup.message = FALSE,
+  cache = TRUE,
+  cache.lazy = FALSE)
+```
+
+# Example 1
+```{r example1}
+source("flow.R")
+
+# starting counts
+from = c(10, 10, 10)
+
+# ending counts
+to = c(9, 11, 10)
+
+# entries are the 
+getTransitionAverages(from, to)
+```
+
+
+# Example 2
+```{r example2}
+n = 5
+from = sample(n, n, replace=FALSE)
+
+names(from) = LETTERS[1:n]
+
+# construct `to` based on `from`
+to = from
+to[1:2] = 0
+to[3] = to[3] +4
+
+D.rate = getTransitionAverages(from, to)
+
+# Plots of data and inferred rates
+plotFromToBars(from, to)
+plotFromToMatrix(D.rate)
+plotFromToNetwork( D.rate )
+```
+
+
+
+
+
+# Example 3
+```{r example3}
+n = 10
+from = sample(10*n, n, replace=FALSE)
+to = sample(10*n, n, replace=FALSE)
+
+names(from) = LETTERS[1:n]
+names(to) = LETTERS[1:n]
+
+D.rate = getTransitionAverages(from, to)
+
+# Plots of data and inferred rates
+plotFromToBars(from, to)
+plotFromToMatrix(D.rate)
+plotFromToNetwork( D.rate )
+```
+
+
+
