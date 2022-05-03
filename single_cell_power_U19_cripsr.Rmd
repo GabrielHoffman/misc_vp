@@ -210,7 +210,7 @@ getPowerCurve = function(n1, n2, n_tests, rsq){
 
 # for each disease
 res = lapply(names(n_samples)[-1], function(ID){
-	res = lapply( c(.7, .8, .9,1), function(rsq){
+	res = lapply( c(.8, .9,1), function(rsq){
 		res = getPowerCurve(n_samples['CTL'], n_samples[ID], n_tests, rsq)
 		res$Disease = ID
 		res 
@@ -241,7 +241,7 @@ getPower = function(n1, n2, d, n_tests, rsq){
 
 getPowerCurve = function(n1, n2, n_tests, rsq){
 	# for each cell number
-	res = lapply( seq(0, 500, length.out=100), function(delta){
+	res = lapply( seq(0, 300, length.out=100), function(delta){
 		res = getPower(n1, n2, delta, n_tests, rsq)
 		data.frame(n1, n2, d = res$d, rsq, power= res$power)
 		})
@@ -250,7 +250,7 @@ getPowerCurve = function(n1, n2, n_tests, rsq){
 
 # for each disease
 res = lapply(names(n_samples)[-1], function(ID){
-	res = lapply( c(.7, .8, .9,1), function(rsq){
+	res = lapply( c(.8, .9,1), function(rsq){
 		res = getPowerCurve(n_samples['CTL'], n_samples[ID], n_tests, rsq)
 		res$Disease = ID
 		res 
