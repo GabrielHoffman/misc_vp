@@ -71,7 +71,7 @@ I have confirmed these curves with simulations. This assumes no cell type miscla
 ```{r power.analysis.proportions, fig.height=4, fig.width=12}
 
 library(pwr)
-n_samples = c(CTL = 6, AD=6)
+n_samples = c(CTL = 3, AD=3)
 n_cells = 5000
 n_cells_max = 10000
 prop_diff = list(c(0.01, 0.05), c(0.001, 0.005), c(0.0001, 0.0005))
