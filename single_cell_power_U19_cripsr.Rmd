@@ -187,10 +187,9 @@ However, these is another level to consider with power analysis.  Because the nu
 
 We need to evaluate the power given 1) measurement error, and 2) case control imbalance.  Therefore, the effective sample size consider both these factors is $n_{eff,R^2} = n_{eff}R^2$
 
-
-```{r, fig.width=20}
-
-n_genes = 10000
+## 1 target gene
+```{r target.gene, fig.width=20}
+n_genes = 1
 n_tests = n_genes * n_cell_types
 
 getPower = function(n1, n2, d, n_tests, rsq){
@@ -203,7 +202,7 @@ getPower = function(n1, n2, d, n_tests, rsq){
 
 getPowerCurve = function(n1, n2, n_tests, rsq){
 	# for each cell number
-	res = lapply( seq(0, 80, length.out=1000), function(delta){
+	res = lapply( seq(0, 15, length.out=1000), function(delta){
 		res = getPower(n1, n2, delta, n_tests, rsq)
 		data.frame(n1, n2, d = res$d, rsq, power= res$power)
 		})
@@ -212,7 +211,7 @@ getPowerCurve = function(n1, n2, n_tests, rsq){
 
 # for each disease
 res = lapply(names(n_samples)[-1], function(ID){
-	res = lapply( c(.5, .6, .7, .8, .9,1), function(rsq){
+	res = lapply( c(.7, .8, .9,1), function(rsq){
 		res = getPowerCurve(n_samples['CTL'], n_samples[ID], n_tests, rsq)
 		res$Disease = ID
 		res 
@@ -227,7 +226,47 @@ res = res[order(res$rsq, decreasing=FALSE),]
 ggplot(res, aes(d, power, color=rsq_text)) + geom_line(size=2) + theme_bw(30) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("Cohen's d") + facet_wrap( ~ Disease) + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed")
 ```
 
-Cohens $d = \frac{|\mu_1 - \mu_2|}{\sigma}$ is the effect size scaled by the within group standard deviation. Dashed line indicates 4000 cells
+
+
+```{r genome.wide, fig.width=20}
+n_genes = 10000
+n_tests = n_genes * n_cell_types
+
+getPower = function(n1, n2, d, n_tests, rsq){
+	# pwr.t2n.test(n1=n1, n2=n2, d=d, sig.level = 0.05/n_tests )
+
+	# Compute n_Eff, need to divide by 2 becaues n is the number in each set
+	N_eff = 4 / (1/n1 + 1/n2)
+	pwr.t.test(n=N_eff/2 * rsq, d=d, sig.level = 0.05/n_tests )
+}
+
+getPowerCurve = function(n1, n2, n_tests, rsq){
+	# for each cell number
+	res = lapply( seq(0, 150, length.out=100), function(delta){
+		res = getPower(n1, n2, delta, n_tests, rsq)
+		data.frame(n1, n2, d = res$d, rsq, power= res$power)
+		})
+	do.call("rbind", res)
+}
+
+# for each disease
+res = lapply(names(n_samples)[-1], function(ID){
+	res = lapply( c(.7, .8, .9,1), function(rsq){
+		res = getPowerCurve(n_samples['CTL'], n_samples[ID], n_tests, rsq)
+		res$Disease = ID
+		res 
+	})
+	do.call("rbind", res)
+})
+res = do.call("rbind", res)
+
+res$rsq_text = with(res, factor(rsq, rev(sort(unique(rsq)))))
+res = res[order(res$rsq, decreasing=FALSE),]
+
+ggplot(res, aes(d, power, color=rsq_text)) + geom_line(size=2) + theme_bw(30) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("Cohen's d") + facet_wrap( ~ Disease) + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed")
+```
+
+Cohens $d = \frac{|\mu_1 - \mu_2|}{\sigma}$ is the effect size scaled by the within group standard deviation. 
 
 ## Get effect size to with 80% power
 ```{r, results="asis", echo=FALSE}
@@ -242,108 +281,5 @@ print(xtable(tab[,c('Disease', 'rsq', 'power', 'd')], type="html"), include.rown
 ```{r exit1, cache=FALSE, echo=FALSE}
 knitr::knit_exit()
 ```
-
-
-# Power for eQTL
-
-Consider $n$ samples where the response is measured with error so that the squared correlation between true and observed response is $R^2$.  Let a given SNP explain $f$% of the variance in the observed response.  Also note that if a SNP has a frequency $p$ and effect size $\beta$, the fraction of expression variation explained by the SNP is $2\beta^2 p(1-p)$  
-
-```{r power.eQTL, echo=FALSE}
-n = sum(n_samples)
-# f = .1
-# rsq = .6
-
-# get 1e-6 cutoff in each cell type
-# n_tests = 50000 * 100
-n_snps_per_gene = 10 # effective number of tests per gene
-n_tests = n_snps_per_gene*n_genes * n_cell_types
-
-# effective number of tests from standard eqtl analysis
-meff_tests_std = 5000
-
-n_tests = meff_tests_std * n_cell_types
-
--log10(0.05/n_tests)
-
-getPower = function(n, rsq, f, n_tests){
-	pwr.r.test(n*rsq, r=sqrt(f), sig.level=0.05/n_tests)
-}
-
-# for each f value
-res = lapply( seq(0, .5, length.out=500), function(f){
-	# for each rsq
-	res = lapply( c(.5, .6, .7, .8, .9,1), function(rsq){
-		res = getPower(n, rsq, f, n_tests)
-		data.frame(n, rsq, f, power=res$power)
-	})
-	res = do.call("rbind", res)
-})
-res = do.call("rbind", res)
-
-res$rsq_text = with(res, factor(rsq, rev(sort(unique(rsq)))))
-res = res[order(res$rsq_text, decreasing=FALSE),]
-
-ggplot(res, aes(f, power, color=rsq_text)) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("eQTL variance explained") + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed")
-```
-
-
-## Get fraction of variance explained to get 80% power
-```{r, results="asis", echo=FALSE}
-res = data.table(res)    
-# Sample size required to get 80% power
-tab = res[,.SD[min(which(power>.80)),],by=rsq]
-tab$f = format(tab$f, digits=2)
-print(xtable(tab[,c('rsq', 'power', 'f')], type="html"), include.rownames=FALSE)
-```
-
-
-```{r, cache=FALSE, echo=FALSE}
-knitr::knit_exit()
-```
-
-# Power curve versus MAF
-
-```{r eval=FALSE}
-# https://www.synapse.org/#!Synapse:syn5652278
-df = fread("CMC_MSSM-Penn-Pitt_DLPFC_Analysis_eQTL-adjustedSVA.txt.gz")
-
-# for each gene get top hit
-df2 = df[eQTL_type=='cis',.SD[which.min(FDR),], by=Gene]
-
-summary(df2[FDR < 0.05,abs(Beta)])
-```
-
-The mean absolute effect size for the top SNP (i.e. smallest p-value) keeping only SNPS with FDR < 0.05 is 0.11384 (median is 0.07786)
-
-This value is very similar to the 0.13 from [GTEx](https://www.nature.com/articles/ng.2653)
-
-Power is shown correcting for 50K tests times 100 cell types.
-
-```{r power.eQTL, maf}
-beta = 0.11384
-
-n = sum(n_samples)
-
-n_tests = 50000 * 100
-
-# for each f value
-res = lapply( seq(0.005, .3, length.out=500), function(maf){
-
-	# need to scale by sqrt(n) because beta is already scaled
-	f = 2*beta^2 * maf * (1-maf) * sqrt(n)
-
-	# for each rsq
-	res = lapply( c(.5, .6, .7, .8, .9,1), function(rsq){
-		res = getPower(n, rsq, f, n_tests)
-		data.frame(n, rsq, f, maf, power=res$power)
-	})
-	res = do.call("rbind", res)
-})
-res = do.call("rbind", res)
-
-ggplot(res, aes(maf, power, color=as.character(rsq))) + geom_line(size=2) + theme_bw(14) + theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + xlab("MAF") + scale_color_discrete(bquote(R^2)) + geom_hline(yintercept=0.8, color="red", linetype="dashed") + scale_x_log10()
-```
-
-
 
 
