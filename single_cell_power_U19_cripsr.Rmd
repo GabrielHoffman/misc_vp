@@ -13,15 +13,16 @@ output:
 
 <!---
 
-# laptop
-rmarkdown::render("/Users/gabrielhoffman/workspace/repos/misc_vp/single_cell_power_AD_v2.Rmd", output_dir='./', intermediates_dir='./'); 
-system("cat single_cell_power_AD_v2.html | grep -v 'Found more than one class' | grep -v 'PythonEmbedInR' > single_cell_power_AD_v2a.html")
-
 # minerva
-cd /sc/orga/projects/CommonMind/hoffman/misc_vp
-ml openssl pandoc
+cd /hpc/users/hoffmg01/www/misc_vp
+ml openssl pandoc git
+git pull
 R
 rmarkdown::render("single_cell_power_U19_cripsr.Rmd", output_dir='./', intermediates_dir='./'); 
+
+single_cell_power_U19_cripsr.html
+
+
 
 --->
 
@@ -236,6 +237,12 @@ res$Dataset = with(res, paste(Disease, rsq))
 tab = res[,.SD[min(which(power>.80)),],by=Dataset]
 print(xtable(tab[,c('Disease', 'rsq', 'power', 'd')], type="html"), include.rownames=FALSE)
 ```
+
+
+```{r exit1, cache=FALSE, echo=FALSE}
+knitr::knit_exit()
+```
+
 
 # Power for eQTL
 
