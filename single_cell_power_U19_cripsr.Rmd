@@ -18,8 +18,7 @@ cd /hpc/users/hoffmg01/www/misc_vp
 ml openssl pandoc git
 git pull
 R
-system("git pull")
-rmarkdown::render("single_cell_power_U19_cripsr.Rmd", output_dir='./', intermediates_dir='./'); 
+system("git pull"); rmarkdown::render("single_cell_power_U19_cripsr.Rmd", output_dir='./', intermediates_dir='./'); 
 
 # https://hoffmg01.u.hpc.mssm.edu/misc_vp/single_cell_power_U19_cripsr.html
 
@@ -242,7 +241,7 @@ getPower = function(n1, n2, d, n_tests, rsq){
 
 getPowerCurve = function(n1, n2, n_tests, rsq){
 	# for each cell number
-	res = lapply( seq(0, 150, length.out=100), function(delta){
+	res = lapply( seq(0, 200, length.out=100), function(delta){
 		res = getPower(n1, n2, delta, n_tests, rsq)
 		data.frame(n1, n2, d = res$d, rsq, power= res$power)
 		})
