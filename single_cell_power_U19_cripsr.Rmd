@@ -241,7 +241,7 @@ getPower = function(n1, n2, d, n_tests, rsq){
 
 getPowerCurve = function(n1, n2, n_tests, rsq){
 	# for each cell number
-	res = lapply( seq(0, 25, length.out=100), function(delta){
+	res = lapply( seq(0, 15, length.out=100), function(delta){
 		res = getPower(n1, n2, delta, n_tests, rsq)
 		data.frame(n1, n2, d = res$d, rsq, power= res$power)
 		})
