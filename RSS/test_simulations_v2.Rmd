@@ -1,0 +1,372 @@
+---
+title: "Linear mixed models with empirical Bayes"
+subtitle: ''
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+documentclass: article
+output: 
+  html_document:
+    smart: false
+---
+
+
+<!--- 
+# run analysis
+cd /Users/gabrielhoffman/workspace/repos/misc_vp/RSS
+
+rmarkdown::render("test_simulations_v2.Rmd")
+
+
+
+
+ ml pandoc git
+
+system("ml git; git pull")
+
+rmarkdown::render("/hpc/users/hoffmg01/scripts/Brennand/COS/evaluate_power.Rmd")
+   
+
+    toc: true
+--->
+
+
+```{r load.packages, echo=FALSE, message=FALSE, results='hide', echo=FALSE}
+suppressPackageStartupMessages({
+library(variancePartition)
+library(ggplot2)
+library(BiocParallel)
+library(lmerTest)
+library(knitr)
+library(tidyverse)
+library(kableExtra)
+library(PRROC)
+library(cowplot)
+})
+
+options(xtable.type="html")
+
+knitr::opts_chunk$set(
+  echo=FALSE,
+  warning=FALSE,
+  message=TRUE,
+  error = FALSE,
+  tidy = FALSE,
+  cache = TRUE,
+  dev = c("png", "pdf"),   fig.width=5, fig.height=5)
+
+options(markdown.HTML.stylesheet = 'css/custom.css')
+```
+
+
+```{r define, echo=FALSE, cache=FALSE}
+# mixture of chisq works with 
+dmixchisq = function(x, df){
+
+  res = lapply(df, function(dff){
+    dchisq(x, dff)
+    })
+  res = do.call(rbind, res)
+
+  colSums(res) / length(df)
+}
+```
+
+# Mixture of chi-squares
+Let $x$ be a weighted mixture of $k$ $\chi^2_1$ values so that $x \sim \sum_{i=1}^k \lambda_i \chi^2_1$.  This distribution has $k$ parameters and an expectation $E[x] = \sum_{i=1}^k \lambda_i$.  When all $\lambda_i$ are 0 or 1,  $x$ is $\chi^2_\nu$ distributed with $\nu = \sum_{i=1}^k \lambda_i$.  For other values of $\lambda_i$, the distribution of $x$ does not reduce to this simple form, but it can be approximated with $\chi^2_\nu$ to match the mean of the full distribution.  Here 100,000 values were sampled from a weighted mixture of $\chi^2_1$ with $\lambda_i = 0.5$ and the kernel density is plotted in black for multiple values of $k$. The $\chi^2_\nu$ approximation matching the mean is shown in red for each value of $k$.
+
+```{r mixture_of_chisq, fig.width=8}
+x = seq(0, 30, length.out=1000)
+
+figList = lapply( c(2, 5, 7, 10, 20, 30), function(k){
+  # simulate weights
+  lambda = rep(0.6, k)
+
+  # draw values from mixture of chisq
+  value = sapply(1:100000, function(i){
+    sum(lambda * rchisq(length(lambda), 1))
+    })
+  
+  df.mean = sum(lambda)
+ 
+  df2 = data.frame(Method = "mean", x=x, density = dchisq(x, df.mean))
+  df2 = df2[df2$density > 1e-3,]
+
+  ggplot(data.frame(value = value), aes(value)) + geom_density() + theme_classic() + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1, legend.position="none")  + geom_line(data=df2, aes(x, density, color=Method), linetype="dashed") + ggtitle(paste0('k=',k)) + scale_y_continuous(expand=c(0,0), limits=c(0, NA)) + scale_x_continuous(expand=c(0,0), limits=c(0, NA)) + scale_color_manual(values=c("red"))
+})
+
+plot_grid( plotlist = figList, ncol=3)
+```
+
+## Residual degrees of freedom run time
+```{r rdf.time, message=FALSE}
+data(varPartData)
+infoCombine = rbind(info, info, info)
+infoCombine = rbind(infoCombine, infoCombine)
+
+lvl = levels(infoCombine$Individual)
+
+n_reps = 20
+
+df_time = lapply(2:25, function(k){
+
+  message("\rk = ",k)
+  infoSub = droplevels(infoCombine[infoCombine$Individual %in% lvl[1:k],])
+
+  beta_Tissue = rnorm(nlevels(infoSub$Tissue))
+  beta_ID = rnorm(nlevels(infoSub$Individual))
+  beta_Batch = rnorm(nlevels(infoSub$Batch))
+
+  y = model.matrix(~0+Age, infoSub) * 1.0 +
+    model.matrix(~0+Individual, infoSub) %*% beta_ID +   
+    model.matrix(~0+Tissue, infoSub) %*% beta_Tissue + 
+    model.matrix(~0+Batch, infoSub) %*% beta_Batch +
+    rnorm(nrow(infoSub), 0, sd=1) 
+ 
+  fit = lmer(y ~ Age + (1|Batch) + (1|Tissue) + (1|Individual), infoSub)    
+
+  data.frame(N          = nrow(infoSub), 
+            'Proposed method'  = system.time(replicate(n_reps, rdf.merMod(fit)))[3],
+            Naive   = system.time(replicate(n_reps, rdf.merMod(fit, "quadratic")))[3],
+            check.names=FALSE)
+})
+df_time = do.call(rbind, df_time)
+
+df_melt = reshape2::melt(df_time, id.vars='N')
+df_melt$variable = factor(df_melt$variable, c('Naive', 'Proposed method'))
+
+xmax = max(df_melt$N) * 1.05
+ymax = max(df_melt$value / n_reps * 20000) * 1.05
+ggplot(df_melt, aes(N, value / n_reps * 20000, color=variable)) + geom_point() + theme_classic() + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1) + geom_smooth(formula = y ~ x + I(x^2), method="lm", se=FALSE) + ylab("Time (seconds for 20K genes)") + scale_color_manual(name = "Method", values=c('red2', 'dodgerblue')) + scale_x_continuous(expand=c(0, 0), limits=c(0, xmax)) + scale_y_continuous(expand=c(0, 0), limits=c(0, ymax)) + xlab("Sample size")
+
+```
+
+
+
+# Run simulations
+```{r simulate.data, message=FALSE}
+set.seed(1)
+data(varPartData)
+info$Age = model.matrix(~0 + Batch, info) %*% rnorm(nlevels(info$Batch)) + rnorm(nrow(info))
+
+# info = rbind(info, info, info)
+lvl = levels(info$Individual)
+# idx = with(info,Individual %in% lvl[1:3] & Tissue %in% c("A", "B"))
+# idx = with(info,Individual %in% lvl[1:3])
+# info = droplevels(info[idx,])
+n_genes = 2000
+var_true = 1/rgamma(n_genes, 5, 2)
+# var_true[] = 10
+  
+n_de = floor(n_genes/4)
+
+geneExpr = lapply(1:n_genes, function(j){
+
+  b = ifelse(j <= n_de, .07, 0)
+
+  # beta_Tissue = rnorm(nlevels(info$Tissue), 0, 2)
+  beta_ID = rnorm(nlevels(info$Individual), 0, 2)
+  beta_Batch = rnorm(nlevels(info$Batch), 0, 1)
+
+  y = model.matrix(~0+Age, info) * b +
+    model.matrix(~0+Individual, info) %*% beta_ID +   
+    # model.matrix(~0+Tissue, info) %*% beta_Tissue + 
+    model.matrix(~0+Batch, info) %*% beta_Batch +
+    rnorm(nrow(info), 0, sd=sqrt(var_true[j])) 
+  t(y)
+  })
+geneExpr = do.call(rbind, geneExpr)
+rownames(geneExpr) = paste0('gene_', 1:nrow(geneExpr))
+
+# Fit models
+form = ~ Age + (1|Individual) + (1|Batch)
+# form = ~ Age + (1|Individual) #+ (1|Tissue) #+ (1|Batch)
+# form = ~ Age + (1|Individual) + (1|Batch)
+
+# fixed effects
+dsgn = model.matrix(subbars(form), info)
+fit_lm = lmFit( geneExpr, dsgn)
+
+# linear mixed model
+fit_mm = dream( geneExpr, form, info, BPPARAM=SnowParam(6))#,  ddf = "Kenward-Roger")
+```
+
+y = geneExpr[j,]
+it = lmer(y ~Age + (1 | Individual) + (1 | Batch), info)
+summary(it, ddf = "Kenward-Roger")
+topTable(fit_mm, coef, number=Inf, sort.by="none")[j,]
+
+```{r vp, eval=TRUE}
+# variancePartition analysis
+vp = fitExtractVarPartModel( geneExpr, form, info, BPPARAM=SnowParam(6))
+
+plotVarPart(sortCols(vp))
+```
+
+# Residual degrees of freedom
+```{r plot.fixed, fig.height=4, fig.width=9, cache=FALSE}
+# Fixed effect model. 
+# fit$sigma^2 is already corrected by n-1
+rdf = nrow(info) - ncol(fit_lm$design)
+RSS = apply(residuals(fit_lm, geneExpr), 1, function(x) sum(x^2))
+
+ggtheme = theme_bw(16) + theme(plot.title = element_text(hjust = 0.5), aspect.ratio=1) 
+
+df = data.frame(value = RSS/var_true)
+x = seq(0, max(df$value), length.out=10000)
+df2 = data.frame(x=x, value = dchisq(x, df=rdf))
+
+fig_fixed = ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Linear model") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2))
+
+## Mixed model 
+n = nrow(info)
+RSS = apply(fit_mm$residuals, 1, function(x) sum(x^2))
+
+df = data.frame(value = RSS/var_true)
+x = seq(0, max(df$value), length.out=10000)
+df2 = data.frame(x=x, value = dmixchisq(x, df=fit_mm$rdf ))
+
+fig_mixed = ggplot(df, aes(value)) + geom_density() + ggtheme + xlim(0, NA) + ggtitle("Linear mixed model") + geom_line(data=df2, aes(x, value), color="red") + xlab(bquote(RSS/sigma^2)) 
+
+plot_grid( fig_fixed, fig_mixed)
+```
+
+```{r est.sigma, fig.width=8, fig.height=16, cache=FALSE}
+# Apply Emprical Bayes 
+fit_eb = eBayes(fit_lm)
+fit_eb_mm = eBayes(fit_mm, robust=TRUE)
+
+# Empirical Bayes estimates
+# fit_eb$df.prior
+# fit_eb_mm$df.prior
+
+# fit_eb$s2.prior  
+# fit_eb_mm$s2.prior 
+
+df = data.frame(value = fit_mm$rdf)
+fig_rdf = ggplot(df, aes(value)) + geom_density() + ggtheme + xlab("Residual degrees of freedom")
+
+# variances from linear model
+fig_fixed = plotVarianceEstimates(fit_lm, fit_eb, var_true) + ggtitle("Linear model")
+
+# variances from linear mixed model
+fig_mixed = plotVarianceEstimates(fit_mm, fit_eb_mm, var_true) + ggtitle("Linear mixed model")
+
+df_mse = data.frame("fixed: MLE" = mean((fit_lm$sigma^2 - var_true)^2),
+          "mixed: MLE" = mean((fit_mm$sigma^2 - var_true)^2),
+          "fixed: Posterior mean" = mean((fit_eb$s2.post - var_true)^2),
+          "mixed: Posterior mean" = mean((fit_eb_mm$s2.post - var_true)^2),
+          check.names=FALSE)
+
+df = reshape2::melt(df_mse)
+df$fill = c("red", "red", "blue", "blue")
+df$variable = factor(df$variable, rev(levels(df$variable)))
+
+ymax = max(sqrt(df$value))*1.03
+fig_MSE = ggplot(df, aes(variable, sqrt(value))) + geom_bar(stat="identity", fill=df$fill) + ggtheme + ylab("Root Mean Squared Error") + scale_y_continuous(expand=c(0, 0), limits=c(0, ymax)) + xlab(bquote(Estimate~of~sigma^2))  + coord_flip()
+
+plot_grid( fig_rdf, fig_fixed, fig_mixed, fig_MSE, ncol=1)
+```
+
+### Amount of shrinkage
+```{r shrinkage, message=FALSE, fig.width=8}
+df = data.frame(LM = fit_lm$sigma^2, EB = fit_eb$s2.post, TrueVar = var_true)
+lim = max(c(max(df$LM), max(df$EB)))
+fig_shrink_fixed = ggplot(df, aes(LM, EB)) + geom_point() + ggtheme + geom_abline(color="red") + xlim(0, lim) + ylim(0, lim) + geom_smooth(method="lm") + xlab("Linear model") + ylab("Emprical Bayes") + ggtitle("Residual variance estimates")
+
+df = data.frame(MM = fit_mm$sigma^2, EB = fit_eb_mm$s2.post, TrueVar = var_true)
+lim = max(c(max(df$MM), max(df$EB)))
+fig_shrink_mixed = ggplot(df, aes(MM, EB)) + geom_point() + ggtheme + geom_abline(color="red") + xlim(0, lim) + ylim(0, lim) + geom_smooth(method="lm") + xlab("Mixed effect model") + ylab("Emprical Bayes") + ggtitle("Residual variance estimates")
+
+plot_grid(fig_shrink_fixed, fig_shrink_mixed, align="hv")
+
+# quantify shrinkage for linear model
+shrinkageMetric( fit_lm$sigma^2, fit_eb$s2.post )
+
+# quantify shrinkage for linear mixed model
+shrinkageMetric( fit_mm$sigma^2, fit_eb_mm$s2.post )
+```
+
+```{r ebayes.test}
+de_oracle = function(fit, df, coef, var_true){
+
+  df.test = df[,coef]
+  tstat = with(fit, coefficients / stdev.unscaled / sqrt(var_true))
+  p.value = 2*pt(-abs(tstat[,coef]),df=df.test )
+  p.value
+}
+```
+
+```{r aupr, cache=FALSE}
+
+true_de = rep(0, n_genes)
+true_de[1:n_de] = 1
+
+coef = "Age"
+
+df_aupr = list()
+
+tstat = with(fit_eb, coefficients / stdev.unscaled / sigma)
+p.fit = 2*pt(-abs(tstat[,coef]), df=fit_eb$df.residual )
+pr = pr.curve( -log10(p.fit)[true_de==1], -log10(p.fit)[true_de==0], curve=TRUE, rand.compute=TRUE)
+df_aupr[['fixed - MLE']] = pr$auc.integral
+
+
+p.fit_eb = topTable(fit_eb, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p.fit_eb)[true_de==1], -log10(p.fit_eb)[true_de==0], curve=TRUE, rand.compute=TRUE )
+df_aupr[['fixed - EB']] = pr$auc.integral
+
+
+
+
+p.fit_mm = topTable(fit_mm, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p.fit_mm)[true_de==1], -log10(p.fit_mm)[true_de==0], curve=TRUE )
+df_aupr[['LMM - MLE']] = pr$auc.integral
+
+
+p.fit_eb_mm = topTable(fit_eb_mm, coef, number=Inf, sort.by="none")[,'P.Value']
+pr = pr.curve( -log10(p.fit_eb_mm)[true_de==1],  -log10(p.fit_eb_mm)[true_de==0], curve=TRUE )
+df_aupr[['LMM - EB']] = pr$auc.integral
+
+
+# Compute moderated t-statistics from Yu, et al, 2019
+# fit_mm_fmt = variancePartition:::eBayesFMT(fit_mm, info, 'Tissue')
+# p.fit_mm_fmt = topTable(fit_mm_fmt, coef, number=Inf, sort.by="none")[,'P.Value']
+# a = -log10(p.fit_mm_fmt)[true_de==1]
+# b = -log10(p.fit_mm_fmt)[true_de==0]
+# pr = pr.curve( a[!is.na(a)], b[!is.na(b)], curve=TRUE )
+# pr$auc.integral
+
+
+p.oracle = de_oracle(fit_eb_mm, fit_eb_mm$df.residual, coef, var_true)
+pr = pr.curve( -log10(p.oracle)[true_de==1], -log10(p.oracle)[true_de==0], curve=TRUE, rand=TRUE )
+df_aupr[['Oracle']] = pr$auc.integral
+
+df_aupr2 = data.frame(Method = names(df_aupr), AUPR = unlist(df_aupr))
+
+df_aupr2$fill = c("red", "blue", "red", "blue", 'grey')
+df_aupr2$Method = factor(df_aupr2$Method, df_aupr2$Method)
+
+ymax = max(df_aupr2$AUPR)*1.03
+yinter = sum(true_de) / length(true_de)
+ggplot(df_aupr2, aes(Method, AUPR)) + geom_bar(stat="identity", fill=df_aupr2$fill) + ggtheme + ylab("Mean squared error") + scale_y_continuous(expand=c(0, 0), limits=c(0, ymax)) + ylab('AUPR') + xlab("Method") + geom_hline(yintercept=yinter, linetype="dashed") + coord_flip()
+
+
+
+df_fpr = data.frame(
+          'Fixed'        = sum(p.fit[true_de==0] < 0.05) / sum(true_de==0),
+          'Fixed - EB'  = sum(p.fit_eb[true_de==0] < 0.05) / sum(true_de==0),
+          'LMM'         = sum(p.fit_mm[true_de==0] < 0.05) / sum(true_de==0),
+          'LMM - EB'    = sum(p.fit_eb_mm[true_de==0] < 0.05) / sum(true_de==0),
+          'Oracle'      = sum(p.oracle[true_de==0] < 0.05) / sum(true_de==0), 
+          check.names=FALSE)
+
+df_fpr = reshape2::melt(df_fpr)
+
+df_fpr$fill = c("red", "blue", "red", "blue", 'grey')
+df_fpr$Method = factor(df_fpr$variable, df_fpr$variable)
+
+ymax = max(df_fpr$value)*1.03
+ggplot(df_fpr, aes(Method, value)) + geom_bar(stat="identity", fill=df_fpr$fill) + ggtheme + ylab("Mean squared error") + scale_y_continuous(expand=c(0, 0), limits=c(0, ymax)) + ylab('False positive rate at p<0.05') + xlab("Method") + geom_hline(yintercept=0.05, linetype="dashed") + coord_flip()
+
+  
+```
