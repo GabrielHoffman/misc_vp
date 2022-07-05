@@ -105,20 +105,21 @@ df_perf = do.call(rbind, df_perf)
 df_perf$Method = factor(df_perf$Method, rev(ids))
 ```
 
-```{r plot1}
+```{r plot1, cache=FALSE}
 ggplot(df_perf, aes(n_batches, AUPR, color=Method)) +
 	geom_point(alpha = .4) + 
 	geom_smooth(se=FALSE) + 
 	theme(aspect.ratio=1) +
 	theme_classic() +
 	scale_y_continuous(limits=c(0,1), expand=c(0,0)) +
-	geom_hline(yintercept=df_perf$AUPR.rand[1], color="grey", linetype="dashed")
+	geom_hline(yintercept=df_perf$AUPR.rand[1], color="grey", linetype="dashed" +
+	xlab("Number of batches")
 ```
 
 
 
 
-```{r plot2}
+```{r plot2, cache=FALSE}
 ggplot(df_perf, aes(mean_batch_size, AUPR, color=Method)) +
 	geom_point(alpha = .4) + 
 	geom_smooth(se=FALSE) + 
@@ -126,7 +127,8 @@ ggplot(df_perf, aes(mean_batch_size, AUPR, color=Method)) +
 	theme_classic() +
 	scale_y_continuous(limits=c(0,1), expand=c(0,0)) +
 	geom_hline(yintercept=df_perf$AUPR.rand[1], color="grey", linetype="dashed") +
-	scale_x_log10()
+	scale_x_log10() +
+	xlab("Mean samples per batch")
 ```
 
 
@@ -139,7 +141,7 @@ cd /hpc/users/hoffmg01/work/misc_vp
 ml git
 git pull
 
-rmarkdown::render("test_mixed_model.Rmd")
+system("git pull"); rmarkdown::render("test_mixed_model.Rmd")
 
 
 
