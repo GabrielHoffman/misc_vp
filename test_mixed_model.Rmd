@@ -105,7 +105,7 @@ df_perf = do.call(rbind, df_perf)
 df_perf$Method = factor(df_perf$Method, rev(ids))
 ```
 
-```{r plot1, cache=FALSE, fig.height=6, fig.width=12}
+```{r plot1, cache=FALSE, fig.height=5, fig.width=12}
 library(cowplot)
 library(tidyverse)
 
