@@ -107,6 +107,7 @@ df_perf$Method = factor(df_perf$Method, rev(ids))
 
 ```{r plot1, cache=FALSE, fig.height=6, fig.width=12}
 library(cowplot)
+library(tidyverse)
 
 colors = c("red", "blue", "grey30")
 
@@ -131,8 +132,29 @@ fig2 = ggplot(df_perf, aes(mean_batch_size, AUPR, color=Method)) +
 	scale_x_log10() +
 	xlab("Mean samples per batch")
 
-plot_grid(fig1, fig2, nrow=1, align="hv", axis="tblr", labels=LETTERS[1:2])
+
+df = reshape2::melt(res, id.vars=c('i', 'beta', 'n_batches', 'mean_batch_size'), variable.name="Method")
+
+fig3 = df %>%
+	as_tibble %>% 
+	filter(beta == 0) %>% 
+	group_by(n_batches, Method) %>% 
+	summarize(FPR = sum(value < 0.05) / length(value)) %>% 
+	mutate(Method = factor(Method, rev(ids))) %>% 
+	ggplot(aes(n_batches, FPR, color=Method)) +
+		geom_point()  + 
+		theme_classic() +
+		theme(aspect.ratio=1) +
+		coord_fixed(ylim=c(0, .2), expand=FALSE) +
+		scale_color_manual(values = colors) +
+		geom_hline(yintercept=0.05, color="grey", linetype="dashed") +
+	xlab("Number of batches") +
+	ylab("False positive rate")
+
+plot_grid(fig1, fig2, fig3, nrow=1, align="hv", axis="tblr", labels=LETTERS[1:2])
 ```
+
+
 
 
 
