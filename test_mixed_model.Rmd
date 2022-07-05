@@ -151,7 +151,7 @@ fig3 = df %>%
 	xlab("Number of batches") +
 	ylab("False positive rate")
 
-plot_grid(fig1, fig2, fig3, nrow=1, align="v", axis="tb", labels=LETTERS[1:3])
+plot_grid(fig1, fig2, fig3, nrow=1, align="v", axis="tblr", labels=LETTERS[1:3])
 ```
 
 
