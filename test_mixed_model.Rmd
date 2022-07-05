@@ -37,7 +37,7 @@ library(decorrelate)
 RNGkind("L'Ecuyer-CMRG")
 
 n = 1000
-n_sims = 10000
+n_sims = 1000
 
 beta_true = .05
 
