@@ -1,0 +1,220 @@
+---
+title: "Compare fixed vs mixed effects models"
+subtitle: 'Simple null simulation'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+documentclass: article
+output: 
+  html_document:
+  toc: true
+  smart: false
+---
+
+
+```{r sim.dat}
+# Simualte confounding
+
+library(PRROC)
+library(lmerTest)
+library(parallel)
+library(mvtnorm)
+library(ggplot2)
+library(decorrelate)
+RNGkind("L'Ecuyer-CMRG")
+
+n = 1000
+n_sims = 500
+
+beta_true = .05
+
+# equal size batches
+# n_per_batch = seq(2, n/2)
+# value = n / n_per_batch
+# n_batches = n / n_per_batch[value == floor(value)]
+
+# uneven batches
+n_batches = floor(seq(2, (n/2), length.out=100))
+
+res = mclapply(n_batches, function(n_batches){
+
+	# df = data.frame(Batch = factor(rep(rep(1:n_batches), n / n_batches)))
+	df = data.frame(Batch = factor(sample.int(n_batches, n, replace=TRUE)))
+	Z_mat = model.matrix( ~ 0 + Batch, df)
+
+	set.seed(1)
+	res = mclapply(1:n_sims, function(i){
+		RhpcBLASctl::omp_set_num_threads(1)	
+
+		beta = ifelse(i < n_sims/10, beta_true, 0)
+			
+		df$z = rnorm(n)
+		df$x = df$z + rnorm(n)
+		df$y = beta*df$x + 2*df$z + rnorm(n)
+
+		df_local = df
+
+		mod1 = coef(summary(lm(y ~ x, df_local)))
+		mod2 = coef(summary(lm(y ~ x + z + Batch, df_local)))
+		# mod3 = coef(summary(lmer(y ~ x + z + (1|Batch), df_local)))
+
+		data.frame(i, beta, n_batches,
+					mean_batch_size = mean(colSums(Z_mat)),
+					'no covariates' = mod1[2,4], 
+					`covariates (fixed)` = mod2[2,4], 
+					# `covariates (mixed)` = mod3[2,5], 
+					check.names=FALSE)
+	}, mc.cores=12)
+	do.call(rbind, res)
+}, mc.cores=4)
+res = do.call(rbind, res)
+
+
+
+ids = colnames(res)[grep("covariates", colnames(res))]
+
+
+df_perf = lapply( unique(res$n_batches), function(n_batches){
+	resSub = res[res$n_batches == n_batches,]
+	df_perf = lapply(ids, function(col){
+
+		i = (resSub$beta != 0)
+		pr = pr.curve(-log10(resSub[i,col]), -log10(resSub[!i,col]), rand.compute=TRUE, curve=TRUE)
+
+		data.frame(n_batches, 
+			mean_batch_size = resSub$mean_batch_size[1],
+			Method=col, AUPR=pr$auc.integral, AUPR.rand = pr$rand$auc.integral)
+	})
+	do.call(rbind, df_perf)
+})
+df_perf = do.call(rbind, df_perf)
+
+df_perf$Method = factor(df_perf$Method, rev(ids))
+```
+
+```{r plot1}
+ggplot(df_perf, aes(n_batches, AUPR, color=Method)) +
+	geom_point(alpha = .4) + 
+	geom_smooth(se=FALSE) + 
+	theme(aspect.ratio=1) +
+	theme_classic() +
+	scale_y_continuous(limits=c(0,1), expand=c(0,0)) +
+	geom_hline(yintercept=df_perf$AUPR.rand[1], color="grey", linetype="dashed")
+```
+
+
+
+
+```{r plot2}
+ggplot(df_perf, aes(mean_batch_size, AUPR, color=Method)) +
+	geom_point(alpha = .4) + 
+	geom_smooth(se=FALSE) + 
+	theme(aspect.ratio=1) +
+	theme_classic() +
+	scale_y_continuous(limits=c(0,1), expand=c(0,0)) +
+	geom_hline(yintercept=df_perf$AUPR.rand[1], color="grey", linetype="dashed") +
+	scale_x_log10()
+```
+
+
+
+```{r exit, cache=FALSE}
+knitr::knit_exit()
+```
+
+cd /hpc/users/hoffmg01/work/misc_vp
+ml git
+git pull
+
+
+
+res = mclapply(1:n_sims, function(i){
+
+	beta = ifelse(i < n_sims/5, .16, 0)
+
+	# Sig = autocorr.mat(3, .4)
+	# Sig[2,1] = Sig[1,2] = beta
+	# df = rmvnorm(n, c(0,0, 0), Sig)
+	# colnames(df) = c('y', 'x', 'z')
+	# df = data.frame(df)
+	# cor(df)
+
+	df$z = rnorm(n)
+	df$x = .1*df$z + rnorm(n)
+	df$y = beta*df$x + 5*df$z + rnorm(n)
+
+	mod1 = coef(summary(lm(y ~ x, df)))
+	mod2 = coef(summary(lm(y ~ x + z, df)))
+
+	data.frame(i, beta,
+					beta_est1 = mod1[2,1], p.1 = mod1[2,4], 
+					beta_est2 = mod2[2,1], p.2 = mod2[2,4]) 
+}, mc.cores=12)
+res = do.call(rbind, res)
+
+
+
+df_perf = lapply( c('p.1', 'p.2'), function(col){
+
+	i = (res$beta != 0)
+	pr = pr.curve(-log10(res[i,col]), -log10(res[!i,col]), rand.compute=TRUE, curve=TRUE)
+
+	data.frame( col=col, AUPR=pr$auc.integral)
+})	
+df_perf = do.call(rbind, df_perf)
+
+
+df_perf
+
+
+ggplot(df_perf, aes(AUPR, color=col)) +
+	geom_point() + 
+	geom_line() + 
+	theme(aspect.ratio=1) +
+	theme_classic() +
+	scale_y_continuous(limits=c(0,1), expand=c(0,0))
+
+
+
+
+
+
+	Sig = matrix(.8, 2,2)
+	diag(Sig) = 1 
+	gamma = rmvnorm(ncol(Z_mat), c(0,0), Sig)
+
+
+
+
+
+
+
+		library(RhpcBLASctl)
+		RhpcBLASctl::omp_set_num_threads(1)
+
+
+
+		# df_local$x = Z_mat %*% gamma[,1] 
+
+		# eta_x = df_local$x
+
+		# eta_z = Z_mat%*%gamma[,2]
+		# # s = sqrt(var(eta_z) * (1-h_sq) / h_sq)
+		# # eta_z = eta_z + rnorm(n, 0, s)
+		# # cor(eta_x , eta_z)^2
+		
+		# eta = beta*eta_x + eta_z
+
+		# s = sqrt(var(eta) * (1-h_sq) / h_sq)
+
+		# df_local$y = eta + rnorm(n, 0, s)
+
+		# cor(eta, df_local$y)^2
+
+
+
+		mod1 = coef(summary(lm(y ~ x, df_local)))
+		mod2 = coef(summary(lm(y ~ x + Batch, df_local)))
+		# mod3 = coef(summary(lmer(y ~ x + (1|Batch), df_local)))
+
+		# fit = lmer(y ~ x + (1|Batch), df_local)
+		# calcVarPart(fit)
