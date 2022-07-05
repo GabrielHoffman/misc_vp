@@ -11,9 +11,23 @@ output:
 ---
 
 
-```{r sim.dat}
-# Simualte confounding
 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning=FALSE,
+  message=FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  dev = c("png", "pdf"),
+  package.startup.message = FALSE,
+  cache = TRUE,
+  cache.lazy = TRUE)
+```
+
+
+```{r sim.dat}
 library(PRROC)
 library(lmerTest)
 library(parallel)
@@ -124,6 +138,8 @@ knitr::knit_exit()
 cd /hpc/users/hoffmg01/work/misc_vp
 ml git
 git pull
+
+rmarkdown::render("test_mixed_model.Rmd")
 
 
 
