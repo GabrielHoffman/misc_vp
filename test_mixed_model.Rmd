@@ -144,7 +144,7 @@ fig3 = df %>%
 	ggplot(aes(n_batches, FPR, color=Method)) +
 		geom_point()  + 
 		theme_classic() +
-		theme(aspect.ratio=1, legend.position=c(.56,.9)) +
+		theme(aspect.ratio=1, legend.position=c(.7,.9)) +
 		coord_fixed(ylim=c(0, .2), expand=FALSE) +
 		scale_color_manual(values = colors) +
 		geom_hline(yintercept=0.05, color="grey", linetype="dashed") +
