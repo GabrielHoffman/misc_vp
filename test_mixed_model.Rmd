@@ -105,7 +105,7 @@ df_perf = do.call(rbind, df_perf)
 df_perf$Method = factor(df_perf$Method, rev(ids))
 ```
 
-```{r plot1, cache=FALSE, fig.height=6, fig.width=9}
+```{r plot1, cache=FALSE, fig.height=6, fig.width=12}
 library(cowplot)
 
 colors = c("red", "blue", "brown")
@@ -131,7 +131,7 @@ fig2 = ggplot(df_perf, aes(mean_batch_size, AUPR, color=Method)) +
 	scale_x_log10() +
 	xlab("Mean samples per batch")
 
-plot_grid(fig1, fig2, nrow=1, align="hv", axis="tl")
+plot_grid(fig1, fig2, nrow=1, align="hv", axis="tblr")
 ```
 
 
