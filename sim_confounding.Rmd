@@ -121,8 +121,9 @@ ggplot(df_perf, aes(mean_batch_size, AUPR, color=Method)) +
 knitr::knit_exit()
 ```
 
-
-
+cd /hpc/users/hoffmg01/work/misc_vp
+ml git
+git pull
 
 
 
