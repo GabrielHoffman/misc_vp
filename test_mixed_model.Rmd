@@ -106,6 +106,8 @@ df_perf$Method = factor(df_perf$Method, rev(ids))
 ```
 
 ```{r plot1, cache=FALSE}
+library(cowplot)
+
 colors = c("red", "blue", "brown")
 
 fig1 = ggplot(df_perf, aes(n_batches, AUPR, color=Method)) +
