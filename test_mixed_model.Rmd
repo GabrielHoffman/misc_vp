@@ -112,7 +112,7 @@ ggplot(df_perf, aes(n_batches, AUPR, color=Method)) +
 	theme(aspect.ratio=1) +
 	theme_classic() +
 	scale_y_continuous(limits=c(0,1), expand=c(0,0)) +
-	geom_hline(yintercept=df_perf$AUPR.rand[1], color="grey", linetype="dashed" +
+	geom_hline(yintercept=df_perf$AUPR.rand[1], color="grey", linetype="dashed") +
 	xlab("Number of batches")
 ```
 
