@@ -37,7 +37,7 @@ library(decorrelate)
 RNGkind("L'Ecuyer-CMRG")
 
 n = 1000
-n_sims = 5000
+n_sims = 10000
 
 beta_true = .05
 
@@ -69,13 +69,13 @@ res = mclapply(n_batches, function(n_batches){
 
 		mod1 = coef(summary(lm(y ~ x, df_local)))
 		mod2 = coef(summary(lm(y ~ x + z + Batch, df_local)))
-		# mod3 = coef(summary(lmer(y ~ x + z + (1|Batch), df_local)))
+		mod3 = coef(summary(lmer(y ~ x + z + (1|Batch), df_local)))
 
 		data.frame(i, beta, n_batches,
 					mean_batch_size = mean(colSums(Z_mat)),
 					'no covariates' = mod1[2,4], 
 					`covariates (fixed)` = mod2[2,4], 
-					# `covariates (mixed)` = mod3[2,5], 
+					`covariates (mixed)` = mod3[2,5], 
 					check.names=FALSE)
 	}, mc.cores=12)
 	do.call(rbind, res)
