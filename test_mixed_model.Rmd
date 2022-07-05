@@ -131,7 +131,7 @@ fig2 = ggplot(df_perf, aes(mean_batch_size, AUPR, color=Method)) +
 	scale_x_log10() +
 	xlab("Mean samples per batch")
 
-plot_grid(fig1, fig2, nrow=1, align="hv", axis="tblr")
+plot_grid(fig1, fig2, nrow=1, align="hv", axis="tb")
 ```
 
 
@@ -147,6 +147,31 @@ git pull
 system("git pull"); rmarkdown::render("test_mixed_model.Rmd")
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# OLD CODE:
 
 res = mclapply(1:n_sims, function(i){
 
