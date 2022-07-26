@@ -53,18 +53,16 @@ isexpr = rowSums(cpm(countMatrix)>0.1) >= 10
 # Standard usage of limma/voom
 geneExpr = DGEList( countMatrix[isexpr,] )
 geneExpr = calcNormFactors( geneExpr )
-```
 
-
-```
 # estimate precision weights 
 # There are 4 Groups.  
 # By default the formula ~ Group will fit an intercept and 3 coefficients showing deviation from this intercept.
 # But in your application, its simpler to fit all 4 Groups directly removing the intercept term with a 0 +:
 form = ~ 0 + Group
 vobj = voomWithDreamWeights( geneExpr, form, info, plot=TRUE )
+```
 
-### Multidomensional scaling, like PAC
+### Multidomensional scaling, like PCA
 ```{r mds}
 dcmp = cmdscale(dist(t(vobj$E)))
 
@@ -77,7 +75,8 @@ ggplot(df, aes(X1, X2, color=Group)) +
 ```
 
 
-
+# dream with contrasts
+You can include covariates here, but that will interfere with the interpretation of the estimated values.  That is why your baseline expression values didt look right before.  Covariate are good for the regression model, but you should report the direct baseline expression values
 ```{r dream}
 # fit regression model with contrasts
 ### WARNING: Please rewrite these contrasts for your biological question.
