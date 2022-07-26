@@ -1,0 +1,158 @@
+---
+title: "Analysis of NKI mouse data"
+subtitle: 'Analysis demo'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+documentclass: article
+output: 
+  html_document:
+  toc: true
+  smart: false
+---
+
+
+<!--- 
+rmarkdown::render("mouse_NKI.Rmd");
+
+--->
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning=FALSE,
+  message=FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  dev = c("png", "pdf"),
+  package.startup.message = FALSE,
+  cache = TRUE,
+  cache.lazy = FALSE)
+```
+
+```{r load.packages}
+library(ggplot2)
+library(variancePartition)
+library(edgeR)
+library(kableExtra)
+library(EnrichmentBrowser)
+library(GSEABase)
+library(zenith)
+library(tidyverse)
+```
+
+# Read data and perform basic analysis
+```{r load.data}
+countMatrix = read.table("~/Downloads/counts.txt", header=TRUE, row.names=1, check.names=FALSE)
+info = read.csv("~/Downloads/samples_ch+.csv", header=TRUE, row.names=1)
+
+# filter genes by number of counts
+isexpr = rowSums(cpm(countMatrix)>0.1) >= 10
+
+# Standard usage of limma/voom
+geneExpr = DGEList( countMatrix[isexpr,] )
+geneExpr = calcNormFactors( geneExpr )
+```
+
+
+```
+# estimate precision weights 
+# There are 4 Groups.  
+# By default the formula ~ Group will fit an intercept and 3 coefficients showing deviation from this intercept.
+# But in your application, its simpler to fit all 4 Groups directly removing the intercept term with a 0 +:
+form = ~ 0 + Group
+vobj = voomWithDreamWeights( geneExpr, form, info, plot=TRUE )
+
+### Multidomensional scaling, like PAC
+```{r mds}
+dcmp = cmdscale(dist(t(vobj$E)))
+
+df = data.frame(dcmp, info)
+
+ggplot(df, aes(X1, X2, color=Group)) +
+  geom_point() +
+  theme_classic() +
+  theme(aspect.ratio=1)
+```
+
+
+
+```{r dream}
+# fit regression model with contrasts
+### WARNING: Please rewrite these contrasts for your biological question.
+### I just focused on the implementation here
+L = makeContrastsDream( form, info, 
+  contrasts = c( Treatment = "GroupTs_ChP - GroupTs_ChN",
+  				 Controls = "Group2N_ChP - Group2N_ChN",
+  	all4 = "GroupTs_ChP - GroupTs_ChN - (Group2N_ChP - Group2N_ChN)"))
+
+plotContrasts(L) 
+
+fit = dream( vobj, form, info, L)
+fit = eBayes(fit)
+
+# Here are the computed group means
+head(coef(fit))
+
+# get p-values from 'all4' contrast
+topTable(fit, coef="all4")
+```
+
+
+## Gene set analysis with zenith
+```{r zenith}
+# Mouse Gene Ontology
+# (takes a few minutes the first time)
+gs.go = getGenesets(org = "mmu", 
+                      db = "go", 
+                      gene.id.type = "ENSEMBL", 
+                      return.type = "GeneSetCollection")
+
+# modify gene set name to show description
+gs.go_rename = lapply(gs.go, function(gs) {
+        setName(gs) = paste0(setName(gs), ": ", description(gs))
+        gs
+    })
+gs.go_rename = GeneSetCollection(gs.go_rename)
+
+# run gene set analysis for each contrast
+res_gsa = zenith_gsa( fit, gs.go_rename, coefs=colnames(L))
+```
+
+```{r top.genesets}
+# examine top genesets for Treatment contrasts
+res_gsa %>%
+  filter(coef == "Treatment") %>%
+  head %>%
+  kbl(row.names=FALSE) %>% 
+  kable_styling
+```
+
+
+
+
+
+
+#### SessionInfo
+<details>
+```{R sessionInfo}
+sessionInfo()
+```
+<\details>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
