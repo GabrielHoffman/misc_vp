@@ -1,0 +1,181 @@
+---
+title: "Evalauting correlation between t-statistics"
+subtitle: 'Sub-sampling data'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+documentclass: article
+output: 
+  html_document:
+  toc: true
+  smart: false
+vignette: >
+  %\VignetteIndexEntry{Decorrelate}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  %\usepackage[utf8]{inputenc}
+---
+
+
+<!--- 
+
+ rmarkdown::render("corr_btw_tstats.Rmd");
+
+
+--->
+
+  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning=FALSE,
+  message=FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  dev = c("png", "pdf"),
+  cache = TRUE,
+  package.startup.message = FALSE,
+  cache.lazy = FALSE)
+```
+
+```{r load.packages}
+library(MASS)
+library(ggplot2)
+library(Rfast)
+library(variancePartition)
+library(tidyverse)
+library(broom)
+library(BiocParallel)
+```
+
+```{r sims}
+# simulation parameters
+nmax = 1000
+ngenes = 10000
+cor.target = 1
+
+# simulate fixed covariate
+info = data.frame(x = rnorm(nmax))
+rownames(info) = paste0("s", 1:nmax)
+
+# simulate coefficients
+if( cor.target == 1 ){
+  beta = rnorm(ngenes)
+  Beta = cbind(beta, beta)
+}else{
+  Sigma  = diag(1,2)
+  Sigma[1,2] = cor.target
+  Sigma[2,1] = cor.target
+  Beta = rmvnorm(ngenes, c(0,0), Sigma)
+}
+rownames(Beta) = paste0("gene_", 1:nrow(Beta))
+
+hsq = 0.005
+
+# Simulate gene expression
+geneExpr1 = t(sapply(Beta[,1], function(b){
+  eta = info$x*b 
+
+  # set cor(y, eta)^2 = hsq
+  se = sqrt((1-hsq) / hsq * var(eta))
+  eta + rnorm(nmax, 0, se)
+  }))
+colnames(geneExpr1) = paste0("s", 1:nmax)
+
+geneExpr2 = t(sapply(Beta[,2], function(b){
+  eta = info$x*b 
+
+  # set cor(y, eta)^2 = hsq
+  se = sqrt((1-hsq) / hsq * var(eta))
+  eta + rnorm(nmax, 0, se)
+  }))
+colnames(geneExpr2) = paste0("s", 1:nmax)
+
+nvalues = c(seq(10, 100, by=2), seq(100, 500, by=10), seq(520, nmax, by=20))
+
+df = lapply( nvalues, function(N){
+
+  message("\r", N, '      ', appendLF=FALSE)
+
+  # subset data, fit regression models, and extract results
+  idx1 = sample.int(nmax, N, replace=FALSE)
+  fit1 = dream(geneExpr1[,idx1], ~ x, info[idx1,,drop=FALSE], quiet=TRUE)
+  fit1 = eBayes(fit1)
+  tab1 = topTable(fit1, coef="x", number=Inf, sort.by='none')
+
+  idx2 = sample.int(nmax, N, replace=FALSE)
+  fit2 = dream(geneExpr2[,idx2], ~ x, info[idx2,,drop=FALSE], quiet=TRUE)
+  fit2 = eBayes(fit2)
+  tab2 = topTable(fit2, coef="x", number=Inf, sort.by='none')
+
+  # merge and compute correlation between t-stats
+  tab = merge(tab1, tab2, by="row.names")
+
+  rm(fit1, tab1, fit2, tab2)
+
+  with(tab, cor.test(t.x, t.y)) %>% 
+    tidy %>%
+    mutate(se = sqrt((1 - estimate^2)/parameter), N = N)
+})
+df = do.call(rbind, df)
+```
+
+```{r plot1, cache=FALSE, fig.height=6, fig.width=6, eval=FALSE, echo=FALSE}
+df %>% 
+  ggplot(aes(N, estimate)) +
+    geom_point() +
+    ylim(0,1) +
+    geom_errorbar(aes(ymin = estimate - 1.96*se, 
+                      ymax = estimate + 1.96*se),
+                      width=0) +
+    theme(aspect.ratio=1) +
+    theme_classic() +
+    geom_smooth(method="nls", formula= y ~ stats::SSlogis(x, a, b, c), method.args = list(start=c(a=1, b=2, c=3)),
+      se=FALSE) +
+    ylab("Correlation between t-statistics") +
+    xlab("Sample size")
+```
+
+Simulate two datasets with `r nmax` samples and `r format(ngenes, scientific=FALSE, big.mark=',')` where the logFC between datasets have a correlation of `r cor.target`.  Perform analysis on random subsets of the data, and evaluate the correlation between the estimated t-statistics.  For each gene, the variable of interest explains `r 100*hsq`% of the variance.
+
+Dashed line is the simulated correlation between coefficients
+```{r plot2, cache=FALSE, fig.height=6, fig.width=6}
+fit = nls( estimate ~ SSlogis(N, a, b, c), data = as.data.frame(df), weights=1/df$se^2)
+
+perc = '%'
+main = bquote(N[max] == .(nmax) ~~~~ cor[target] == .(cor.target) ~~~~ h^2 == .(100*hsq)~.(perc))
+plot(1, type='n', main=main)
+
+plot(1, type='n', xlim=c(0, nmax), ylim=c(0,1), ylab="Correlation between t-statistics", xlab="Sample size", main=main)
+
+with(df, arrows(x0=N, y0=estimate - 1.96*se,
+                x1=N, y1=estimate + 1.96*se, 
+                col="grey60", lwd=2, code=1, angle=90, length=0))
+with(df, points(N, estimate, pch=20))
+abline(h=cor.target^2, lty="dashed")
+# lines(df$N, predict(fit), col="red", lwd=2) 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```

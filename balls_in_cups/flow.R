@@ -40,6 +40,14 @@ getTransition = function(from, to){
 		stop("from and to must be same length")
 	}
 
+	# detect components where both to and from are zero
+	bothZero = (from == 0) & (to == 0)
+
+	# if( sum(bothZero) > 0){
+	# 	cmd = paste(names(which(bothZero)), collapse=', ')
+	# 	stop("Components are zero in both to and from: ", cmd )
+	# }
+
 	# make sums the same by scaling
 	from = adjustScale(from)
 	to = adjustScale(to)
@@ -101,6 +109,10 @@ getTransitionAverages = function(from, to, nperm = 1000){
 
 	# Convert mean counts to rates
 	D.rate = t(apply(D.mean, 1, function(x) x/ sum(x)))
+
+	# when row sum is zero, divides by zero to get NaN
+	# so set to zero flow
+	D.rate[is.nan(D.rate)] = 0
 
 	D.rate
 }
@@ -165,10 +177,12 @@ plotFromToNetwork = function(D.rate){
 	n1 = length(grep("^from_", names(V(g))))
 	n2 = length(grep("^to_", names(V(g))))
 
+	ids_convert = gsub("^(from|to)_(.+)$", "\\2", names(V(g)))
+
 	V(g)$x = c(rep(1, n1), rep(2, n2))
-	V(g)$y = match(gsub("^.*_(.+)$", "\\1", names(V(g))), ids)
+	V(g)$y = match(ids_convert, ids)
 	V(g)$color = c(rep(cols[1], n1), rep(cols[2], n2))
-	V(g)$vertex.label = gsub("^.*_(.+)$", "\\1", names(V(g)))
+	V(g)$vertex.label = ids_convert
 
 	plot(g, 
 		edge.arrow.size = .5,
@@ -178,6 +192,8 @@ plotFromToNetwork = function(D.rate){
 		vertex.frame.color=NA,
 		vertex.label.color = "black")
 }
+
+
 
 
 

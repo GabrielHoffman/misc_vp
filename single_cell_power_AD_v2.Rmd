@@ -73,10 +73,10 @@ I have confirmed these curves with simulations. This assumes no cell type miscla
 
 library(pwr)
 n_samples = c(CTL = 50, AD=50)
-n_cells = 4000
+n_cells = 5000
 n_cells_max = 8000
 prop_diff = list(c(0.001, 0.002), c(0.0001, 0.0003), c(0.00001, 0.0001))
-n_cell_types = 20*5
+n_cell_types = 5*15 #20*5
 
 getPower = function(n1, n2, p1, p2, C, n_tests){
 	sSq1 = p1*(1-p1)/ C
@@ -189,7 +189,6 @@ We need to evaluate the power given 1) measurement error, and 2) case control im
 
 
 ```{r, fig.width=20}
-
 n_genes = 10000
 n_tests = n_genes * n_cell_types
 
