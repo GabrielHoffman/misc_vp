@@ -82,18 +82,22 @@ cov.se = function(x,y, nboot=1000){
   sd(bs.out)
 }
 
-heivr.boot.se = function(x, y, v.x, v.y, nboot=1000){
+heivr.boot.se = function(x, y, v.x, v.y, nboot=1000, tol=1e-4){
 
   stopifnot( length(x) == length(y))
   
   ## bootstrap out
   bs.out <- replicate(nboot, {
     i <- sample.int(length(x), length(x), replace=TRUE)
-    heivr(x[i], y[i], v.x[i], v.y[i])$rho
+    heivr(x[i], y[i], v.x[i], v.y[i], tol=tol)$rho
   })
   sd(bs.out)
 }
+
+# with(tab, heivr.boot.se(logFC.x, logFC.y, (logFC.x/t.x)^2,(logFC.y/t.y)^2, 50, tol=1e-1))
 ```
+
+
 
 ```{r sims.function, cache=FALSE}
 run_simulation = function(nmax, ngenes, cor.target, nvalues, hsq){
@@ -154,48 +158,22 @@ run_simulation = function(nmax, ngenes, cor.target, nvalues, hsq){
 
     rm(fit1, tab1, fit2, tab2)
 
-    # correlation
-    # with(tab, cor.test(logFC.x, logFC.y)) %>% 
-    #   tidy %>%
-    #   mutate(se = sqrt((1 - estimate^2)/parameter), N = N)
+    tmp = with(tab, cor.test(logFC.x, logFC.y)) %>% tidy %>% mutate(se = sqrt((1 - estimate^2)/parameter))
+    cor.se = tmp$se
 
-    # res = cov.wt(with(tab, cbind(logFC.x, logFC.y)), sqrt(with(tab, (logFC.x/t.x)^2 + (logFC.y / t.y)^2)), cor=TRUE)
-
-    a = with(tab, cor.test(logFC.x, logFC.y)) %>% tidy %>% mutate(se = sqrt((1 - estimate^2)/parameter))
-
-    # Deming
-    # fit = deming(logFC.y ~ logFC.x, data=tab, xstd = logFC.x / t.x, ystd = logFC.y / t.y, jackknife=FALSE)
-
-    # # a = with(tab, sqrt(var(logFC.x) - mean((logFC.x / t.x)^2)))
-    # # b = with(tab, sqrt(var(logFC.y) - mean((logFC.y / t.y)^2)))
-
-    # s = with(tab, sd(logFC.x) / sd(logFC.y))
-    # cor.deming = fit$coefficients[2] * s
-    # cor.deming.se = fit$se[2] * s
-
-    # # mcr
-    # er = with(tab, mean((logFC.x / t.x)^2) / mean((logFC.y / t.y)^2))
-    # it = with(tab, mcreg(logFC.x, logFC.y, error.ratio=er, method.reg="Deming"))
-    # s = with(tab, sd(logFC.x) / sd(logFC.y))
-    # cor.deming2 = it@para[2,1] * s
-    # cor.deming2.se = it@para[2,2] * s
-
+    # heivr - mom
     hobj.mom = with(tab, heivr_mom(logFC.x, logFC.y, (logFC.x/t.x)^2, (logFC.y/t.y)^2, 40 ))
 
     # heivr
     hobj = with(tab, heivr(logFC.x, logFC.y, (logFC.x/t.x)^2,(logFC.y/t.y)^2))
+
+    if(is.na(hobj$rho.se)) browser()
     
     # covariance  
-    data.frame( #cov = with(tab, cov(logFC.x, logFC.y)),
-                #cov.se = with(tab, cov.se(logFC.x, logFC.y)),
-                cor = with(tab, cor(logFC.x, logFC.y)), 
-                cor.se = a$se,
+    data.frame( cor = with(tab, cor(logFC.x, logFC.y)), 
+                cor.se = cor.se,
                 cor.mom = hobj.mom$rho,
                 cor.mom.se = hobj.mom$rho.se,
-                # cor.deming = cor.deming,
-                # cor.deming.se = cor.deming.se,
-                # cor.deming2 = cor.deming2,
-                # cor.deming2.se = cor.deming2.se,
                 cor.heivr = hobj$rho,
                 cor.heivr.se = hobj$rho.se,
                 N = N)
@@ -203,25 +181,17 @@ run_simulation = function(nmax, ngenes, cor.target, nvalues, hsq){
   df = do.call(rbind, df)
   
   # combine results
-  rbind(data.frame(Method = "Pearson", 
-                  cor = df$cor, 
-                  se = df$cor.se, 
+  rbind(data.frame(Method = "heivr", 
+                  cor = df$cor.heivr, 
+                  se = df$cor.heivr.se, 
                   N = df$N), 
         data.frame(Method = "MOM", 
                   cor = df$cor.mom, 
                   se = df$cor.mom.se, 
                   N = df$N), 
-        # data.frame(Method = "Deming", 
-        #           cor = df$cor.deming, 
-        #           se = df$cor.deming.se,
-        #           N = df$N), 
-        # data.frame(Method = "Deming2", 
-        #           cor = df$cor.deming2, 
-        #           se = df$cor.deming2.se,
-        #           N = df$N),
-        data.frame(Method = "heivr", 
-                  cor = df$cor.heivr, 
-                  se = df$cor.heivr.se, 
+        data.frame(Method = "Pearson", 
+                  cor = df$cor, 
+                  se = df$cor.se, 
                   N = df$N))
 }
 ```
@@ -229,22 +199,22 @@ run_simulation = function(nmax, ngenes, cor.target, nvalues, hsq){
 ```{r run.sims}
 # simulation parameters
 nmax = 1000
-ngenes = 1000
+ngenes = 1000 
 cor.target = .8
-nvalues = c(seq(30, 100, by=30), seq(120, 500, by=75), seq(520, nmax, by=150))
+nvalues = c(seq(50, 100, by=30), seq(120, 500, by=75), seq(520, nmax, by=150))
 hsq = 0.6
- 
-# df_param = expand.grid(hsq = c(.01, 0.05, 0.2), 
-#             cor.target = c(0.2, .7, 1))
+  
+df_param = expand.grid(hsq = c(.01, 0.05, 0.2), 
+            cor.target = c(0.2, .7, 1))
 
-df_param = expand.grid(hsq = .02, cor.target = .8)
+# df_param = expand.grid(hsq = .02, cor.target = .8)
  
 df = lapply( 1:nrow(df_param), function(i){
 
   df = run_simulation(nmax, ngenes, cor.target = df_param$cor.target[i], nvalues, hsq = df_param$hsq[i])
   df$cor.target = df_param$cor.target[i]
   df$hsq = df_param$hsq[i]
-  df
+  df 
 }) 
 df = do.call(rbind, df)
 ```
@@ -252,19 +222,22 @@ df = do.call(rbind, df)
 
 
 
+rmarkdown::render("corr_btw_tstats.Rmd");
 
 
 
- rmarkdown::render("corr_btw_tstats.Rmd");
 
 
 ```{r plot1, cache=FALSE, fig.height=8, fig.width=12}
 col = c(heivr = "red3", Pearson = "blue3", MOM="green3")
-# , Deming = "green2", Deming2 = "orange", 
-ggplot(df, aes(N, pmax(0, pmin(1, cor)), col=Method)) +
+
+df$offset = sapply(df$Method, function(x) 
+                switch(x, heivr = 3, Pearson=6, MOM=9))
+
+ggplot(df, aes(N + offset, pmax(0, pmin(1, cor)), col=Method)) +
+  geom_hline(aes(yintercept=cor.target), linetype="dashed", color="black") +
   geom_errorbar(aes(ymin = pmax(0,cor - 1.96*se), ymax = pmin(1, cor + 1.96*se)), width=0) +
   geom_point() +
-  geom_hline(aes(yintercept=cor.target), linetype="dashed", color="black") +
   theme_classic() +
   theme(aspect.ratio=1) +
   scale_y_continuous(limits=c(0,1), expand=c(0,0.03)) +
