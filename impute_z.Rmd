@@ -1,0 +1,113 @@
+---
+title: "Impute z-scores from ungenotyped variants"
+subtitle: 'Using observed z-scores and LD matrix'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+output: 
+  html_document:
+    toc: false
+    smart: true
+params:
+  DATASET: NULL
+---
+
+<!----
+
+
+rmarkdown::render("impute_z.Rmd")
+
+
+--->
+
+# Main function
+```{r imputed_z}
+#' Impute unobserved z-scores given observed data
+#'
+#' Impute z-scores at unobserved variants using z-scores and LD matrix from observed variants.
+#' 
+#' @param z array of z-scores
+#' @param Sigma LD matrix 
+#' @param i index to impute
+#' @param lambda tuning parameter for shrinking covariance matrix
+#' 
+#' @description
+#' Implement method from Pasaniuc, et al. (Bioinformatics, 2014) using a multivariate approximation of the observed z-scores
+#' 
+#' @return
+#' data.frame storing variant ID, imputed z-statistic (z.stat) and standard error of the imputed z-score (se).
+#' 
+impute_z = function(z, Sigma, i, lambda = 0.1){
+
+	Sigma.shrink = (1-lambda) * Sigma + diag(lambda, nrow(Sigma))
+
+	# impute the ith z-score using 
+	# impute z-score using Gaussian conditional distribution
+	# z_i = Sigma.shrink[i,-i] %*% solve(Sigma.shrink[-i,-i], z[-i])
+	# W = Sigma.shrink[i,-i] %*% solve(Sigma.shrink[-i,-i])
+
+	# weights
+	W = solve(Sigma.shrink[-i,-i], Sigma.shrink[-i,i])
+
+	# imputed z-scores
+	z_i = crossprod(W, z[-i])
+
+	# compute standard error for each imputed z-score
+	se_i = sqrt(diag(crossprod(W,Sigma.shrink[-i, -i]) %*% W))
+
+	data.frame(ID = names(z)[i], z.stat = z_i, se = se_i)
+}
+```
+
+# Simple simulation
+```{r analysis, fig.width=4.5}
+library(Rfast)
+
+# Generate auto-correlation matrix
+autocorr.mat = function (p, rho){
+    mat <- diag(p)
+    rho^abs(row(mat) - col(mat))
+}
+
+# Simulate LD matrix
+p = 500
+rho = .95
+Sigma = autocorr.mat(p, rho )
+
+# Simulate z-scores
+z = rmvnorm(1, rep(0, p), Sigma, seed=1)
+z = as.numeric(z)
+names(z) = paste0("SNP_", 1:p)
+
+# Plot z-scores
+plot(z, xlab="Variants", ylab="z-scores")
+```
+
+# Impute the ith variant
+```{r test}
+i = 50
+impute_z(z, Sigma, i)
+```
+
+# Impute each variant 
+For the ith variant, use observations from all other variants.
+```{r all}
+df_z = lapply(1:p, function(i){
+	impute_z(z, Sigma, i)
+})
+df_z = do.call(rbind, df_z)
+
+head(df_z)
+```
+
+# Plot each variant
+```{r plot, fig.width=4.5}
+# Plot comparing observed and imputed values
+plot(z, df_z$z.stat, xlab="Observed z", ylab="Imputed z", main="Compare observed and imputed")
+abline(0, 1, col="red")
+r = cor(z, df_z$z.stat)
+text(x=0, y=1.8, paste0("R = ", format(r, digits=3)))
+```
+
+
+
+
