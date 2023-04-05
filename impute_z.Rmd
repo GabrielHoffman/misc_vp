@@ -38,7 +38,11 @@ rmarkdown::render("impute_z.Rmd")
 #' 
 impute_z = function(z, Sigma, i, lambda = 0.1){
 
-	Sigma.shrink = (1-lambda) * Sigma + diag(lambda, nrow(Sigma))
+	if( is(Sigma, "sparseMatrix") ){
+		Sigma.shrink = (1-lambda) * Sigma + Diagonal(nrow(Sigma), lambda)
+	}else{
+		Sigma.shrink = (1-lambda) * Sigma + diag(lambda, nrow(Sigma))
+	}
 
 	# impute the ith z-score using 
 	# impute z-score using Gaussian conditional distribution
@@ -46,7 +50,7 @@ impute_z = function(z, Sigma, i, lambda = 0.1){
 	# W = Sigma.shrink[i,-i] %*% solve(Sigma.shrink[-i,-i])
 
 	# weights
-	W = solve(Sigma.shrink[-i,-i], Sigma.shrink[-i,i])
+	W = solve(Sigma.shrink[-i,-i], Sigma.shrink[-i,i,drop=FALSE])
 
 	# imputed z-scores
 	z_i = crossprod(W, z[-i])
@@ -54,7 +58,9 @@ impute_z = function(z, Sigma, i, lambda = 0.1){
 	# compute standard error for each imputed z-score
 	se_i = sqrt(diag(crossprod(W,Sigma.shrink[-i, -i]) %*% W))
 
-	data.frame(ID = names(z)[i], z.stat = z_i, se = se_i)
+	data.frame(ID = names(z)[i], 
+						z.stat = as.numeric(z_i), 
+						se = as.numeric(se_i))
 }
 ```
 
@@ -154,18 +160,23 @@ sparsity(M)
 ```
 
 ## Simulate using real LD
-The LD filter is very strictt R2 > 0.4.  This means that very few non-zero values are reported and the LD matrix may not be positive definite.  But this makes the operation very fast.
+The LD filter is very strictt R2 > 0.4.  This means that very few non-zero values are reported and the LD matrix may not be positive definite.  This makes the operation very fast, but it means that this LD resource will give less than ideal accuracy of imputed z-scores.
 ```{r sim2}
-library(sparseMVN)
-i = seq(1, 100000)
+# library(sparseMVN)
+# number of SNPs
+p = 1000 
+i = seq(1, p)
 
-lambda = .1
-Sigma = (1-lambda)*M[i,i] + lambda*Diagonal(length(i), 1)
+lambda = 0
+Sigma = (1-lambda)*M[i,i] + lambda*Diagonal(p, 1)
+
+Sigma = as(autocorr.mat(p, rho ), "sparseMatrix")
 
 ch = Cholesky(Sigma)
+A = Matrix::expand(ch)
 
 # Simulate z-scores
-z = solve(ch, rnorm(nrow(Sigma)))
+z = crossprod(A$P, A$L %*% rnorm(p))
 z = as.numeric(z)
 names(z) = paste0("SNP_", 1:p)
 
@@ -173,8 +184,31 @@ names(z) = paste0("SNP_", 1:p)
 plot(z, xlab="Variants", ylab="z-scores")
 ```
 
+# Impute the ith variant
+```{r test.sparse}
+i = 50
+impute_z(z, Sigma, i)
+```
 
+# Impute each variant 
+For the ith variant, use observations from all other variants.
+```{r all.sparse}
+df_z = lapply(1:p, function(i){
+	impute_z(z, Sigma, i)
+})
+df_z = do.call(rbind, df_z)
 
+head(df_z)
+```
+
+# Plot each variant
+```{r plot.sparse, fig.width=4.5}
+# Plot comparing observed and imputed values
+plot(z, df_z$z.stat, xlab="Observed z", ylab="Imputed z", main="Compare observed and imputed")
+abline(0, 1, col="red")
+r = cor(z, df_z$z.stat)
+text(x=0, y=1.8, paste0("R = ", format(r, digits=3)))
+```
 
 
 
