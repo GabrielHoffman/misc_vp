@@ -108,6 +108,73 @@ r = cor(z, df_z$z.stat)
 text(x=0, y=1.8, paste0("R = ", format(r, digits=3)))
 ```
 
+# Read from TOPLD
+```{r topLD}
+library(tidyverse)
+library(Matrix)
+
+# LD filtered at R2 > .2, sp R > 0.44
+df = read_csv("~/Downloads/EUR_chr22_no_filter_0.2_1000000_LD.csv.gz") %>%
+	filter(SNP1 < SNP2) %>%
+	rename( Sign = `+/-corr`) %>%
+	mutate( Sign = ifelse(Sign=='+', 1, -1))
+
+# Get unique positions, sorted increasing order
+df_position = rbind(df %>% 
+					select(SNP1, Uniq_ID_1) %>% 
+					rename(Position = SNP1, ID = Uniq_ID_1), 
+					df %>% 
+					select(SNP2, Uniq_ID_2) %>% 
+					rename(Position = SNP2, ID = Uniq_ID_2)) %>%
+					distinct %>%
+					arrange(Position)
+
+N = nrow(df_position)
+
+# Match SNPs to order positions
+df$idx.i = match(df$Uniq_ID_1, df_position$ID)
+df$idx.j = match(df$Uniq_ID_2, df_position$ID)
+
+# Create sparse matrix storing LD
+M = sparseMatrix(i = df$idx.i,
+				 j = df$idx.j,
+				 x = with(df, sqrt(R2)*Sign),
+				 symmetric = TRUE,				 
+				 dims = c(N,N), 
+				 dimnames=list(df_position$ID, df_position$ID) )
+diag(M) = 1
+
+sparsity = function(x){
+	1 - 2*length(x@x) / prod(x@Dim)
+}
+
+sparsity(M)
+
+# save M and df_position for each chromsome
+```
+
+## Simulate using real LD
+The LD filter is very strictt R2 > 0.4.  This means that very few non-zero values are reported and the LD matrix may not be positive definite.  But this makes the operation very fast.
+```{r sim2}
+library(sparseMVN)
+i = seq(1, 100000)
+
+lambda = .1
+Sigma = (1-lambda)*M[i,i] + lambda*Diagonal(length(i), 1)
+
+ch = Cholesky(Sigma)
+
+# Simulate z-scores
+z = solve(ch, rnorm(nrow(Sigma)))
+z = as.numeric(z)
+names(z) = paste0("SNP_", 1:p)
+
+# Plot z-scores
+plot(z, xlab="Variants", ylab="z-scores")
+```
+
+
+
 
 
 
