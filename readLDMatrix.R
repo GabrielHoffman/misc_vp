@@ -79,7 +79,8 @@ fillRate = function( M ){
 
 
 
-
+# This example uses a data frame with 1 row
+# for real analysis use rows for 1:22
 df = data.frame(chrom = 22)
 df$BIM = "/sc/arion/projects/roussp01a/sanan/230322_GWASimp/imputeZPipeline_V2/inter/230424/plinkStep2/1kg_chr22.bim"
 
