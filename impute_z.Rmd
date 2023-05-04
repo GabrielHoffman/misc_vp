@@ -160,7 +160,7 @@ sparsity(M)
 ```
 
 ## Simulate using real LD
-The LD filter is very strictt R2 > 0.4.  This means that very few non-zero values are reported and the LD matrix may not be positive definite.  This makes the operation very fast, but it means that this LD resource will give less than ideal accuracy of imputed z-scores.
+The LD filter is very strictt R2 > 0.4.  This means that very few non-zero values are reported and the LD matrix may not be positive definite.  This makes the operation very fast, but it means that this LD resource will give less than ideal accuracy of imputed z-scores.  You will likely need a more complete LD matrix for this to be useful
 ```{r sim2}
 # library(sparseMVN)
 # number of SNPs

@@ -1,10 +1,19 @@
 # Gabriel Hoffman
 # April 26, 2023
 
+FILE=/sc/arion/projects/roussp01a/sanan/230322_GWASimp/imputeZPipeline_V2/inter/230424/plinkStep2/1kg_chr22
+OUT=/sc/arion/scratch/hoffmg01/chr22
+
+# need large window since SNPS are dropped
+plink --bfile $FILE --maf 0.01 --r gz --ld-window 1000 --ld-window-kb 1000000 --ld-window-r2 0 --threads 12 --out $OUT
+
+
+
 
 library(data.table)
 library(Matrix)
 library(GenomicRanges)
+library(tidyverse)
 
 #' Read LD LD files 
 #'
@@ -12,7 +21,7 @@ library(GenomicRanges)
 #'
 #' @param df_files data.frame of file info: chrom, BIM, LD
 #' @param r2cutoff values with r^2 less than this are set to zero
-readLDMatrix = function( df_files, r2cutoff=0.05){
+readLDMatrix = function( df_files, r2cutoff=0){
 
 	# for each chromosome
 	r2MatList = lapply( seq_len(nrow(df_files)), function(i){
@@ -26,9 +35,14 @@ readLDMatrix = function( df_files, r2cutoff=0.05){
 
 		# read LD
 		# this does R-squared
-		cmd = paste0("zcat ", df_files$LD[i], " | awk '{if($7*$7 > ", r2cutoff, ") print $3, $6, $7}'")
+		if( r2cutoff == 0){
+			cmd = paste0("zcat ", df_files$LD[i], " | awk '{print $3, $6, $7}'" )
+		}else{
+			cmd = paste0("zcat ", df_files$LD[i], " | awk '{if($7*$7 > ", r2cutoff, ") print $3, $6, $7}'")
+		}
 		dfld = fread( cmd=cmd, sep=' ')
 		colnames(dfld) = c('SNP_A', 'SNP_B', "R")
+		dfld = dfld[!is.nan(dfld$R),]
 
 		# keep only variants in dfld
 		df_position = df_position[name %in% unique(c(dfld$SNP_A, dfld$SNP_B)),]
@@ -56,6 +70,8 @@ readLDMatrix = function( df_files, r2cutoff=0.05){
 						symmetric = TRUE, 
 						dims = c(N,N), 
 						dimnames=list(df_position$name, df_position$name) )
+
+		# df_pairs = with(dfld, tibble(SNP_A=factor(SNP_A), SNP_B=factor(SNP_B)))
 		rm(dfld)
 
 		# return LD matrix and variant annotation
@@ -84,9 +100,10 @@ fillRate = function( M ){
 df = data.frame(chrom = 22)
 df$BIM = "/sc/arion/projects/roussp01a/sanan/230322_GWASimp/imputeZPipeline_V2/inter/230424/plinkStep2/1kg_chr22.bim"
 
-df$LD = "/sc/arion/projects/roussp01a/sanan/230322_GWASimp/imputeZPipeline_V2/inter/230424/plinkStep3/1kg_ld_chr22.ld.gz"
+# df$LD = "/sc/arion/projects/roussp01a/sanan/230322_GWASimp/imputeZPipeline_V2/inter/230424/plinkStep3/1kg_ld_chr22.ld.gz"
+df$LD = "/sc/arion/scratch/hoffmg01/chr22.ld.gz"
 
-LDm = readLDMatrix( df, r2cutoff=0.01 )
+LDm = readLDMatrix( df )
 
 LDm[["22"]]$C.ld[1:3, 1:3]
 LDm[["22"]]$gr[1:3]
@@ -96,9 +113,134 @@ length(LDm[["22"]]$gr)
 
 fillRate( LDm[["22"]]$C.ld )
 
-saveRDS(LDm, file="LDm.RDS")
+saveRDS(LDm, file="/sc/arion/scratch/hoffmg01/LDm.RDS")
 
-LDm = readRDS("LDm.RDS")
+# Test analysis
+################
+
+library(Matrix)
+
+# q
+
+# rs149661006
+z_in = readRDS("/sc/arion/projects/roussp01a/sanan/230322_GWASimp/imputeZPipeline_V2/exampleForGabriel/z.RDS")
+# Sigma_in = readRDS("Sigma.RDS")
+Sigma_in = LDm[['22']]$C.ld
+# df_pairs_in = LDm[['22']]$df_pairs
+
+# this removes SNPs so window is smaller
+include = intersect(names(z_in)[!is.na(z_in)], rownames(Sigma_in))
+
+z = z_in[include]
+Sigma = Sigma_in[include, include]
+# df_pairs = df_pairs_in %>% 
+# 	filter(SNP_A %in% include, SNP_B %in% include)
+
+
+# dcmp = eigen(Sigma, symmetric=TRUE)
+# Sigma = with(dcmp, vectors %*% diag(pmax(0,values)) %*% t(vectors))
+# Sigma = cov2cor(Sigma)
+
+impute_z = function(z, Sigma, i, lambda = 0.1){
+	if( is(Sigma, "sparseMatrix") ){
+		Sigma.shrink = (1-lambda) * Sigma + Diagonal(nrow(Sigma), lambda)
+	}else{
+		Sigma.shrink = (1-lambda) * Sigma + diag(lambda, nrow(Sigma))
+	}
+	# impute the ith z-score using 
+	# impute z-score using Gaussian conditional distribution
+	# z_i = Sigma.shrink[i,-i] %*% solve(Sigma.shrink[-i,-i], z[-i])
+	# W = Sigma.shrink[i,-i] %*% solve(Sigma.shrink[-i,-i])
+	# weights
+	W = solve(Sigma.shrink[-i,-i], Sigma.shrink[-i,i,drop=FALSE])
+
+	# imputed z-scores
+	z_i = crossprod(W, z[-i])
+
+	# compute standard error for each imputed z-score
+	sig = Sigma.shrink[i,i] - (crossprod(W,Sigma.shrink[-i, -i]) %*% W)
+
+	data.frame(ID = names(z)[i], 
+						z.stat = as.numeric(z_i), 
+						sig = as.numeric(sig),
+						r2.pred = 1 - as.numeric(sig))
+}
+
+# Instead do reverse diagonal
+pairwiseCompleteWindow = function(S, mid){
+	# Reduce window until most distance SNPs have LD computed
+	a = 1
+	b = ncol(S)
+	alterate = TRUE
+
+	while(S[a,b] == 0){
+		if( alterate )
+			a <- pmin(a + 1, mid)
+		else
+			b <- pmax(b - 1, mid)
+		alterate = ! alterate
+	}
+
+	c(a,b)
+}
+
+window_initial = 200
+df_z = lapply(seq(length(z)), function(i){
+	# message(i)
+	id = names(z)[i]
+
+	incl = seq(pmax(0, i-window_initial), 
+				pmin(length(z), i + window_initial))
+	Sigma_local = as.matrix(Sigma[incl,incl])
+	z_local = z[incl]
+
+	# Reduce window until most distance SNPs have LD computed
+	# This ensures that Sigma is positive definite
+	mid = which(names(z_local) == id)
+	window = pairwiseCompleteWindow( Sigma_local, mid)
+
+	incl2 = seq(window[1], window[2])
+	Sigma_local = Sigma_local[incl2, incl2]
+	z_local = z_local[incl2]
+
+	k = which(names(z_local) == id)
+	df = impute_z(z_local, Sigma_local, k, lambda=0.1)
+	data.frame(df, width=window[2] - window[1])
+})
+df_z = do.call(rbind, df_z)
+
+# Plot comparing observed and imputed values
+plot(z, df_z$z.stat, xlab="Observed z", ylab="Imputed z", main="Compare observed and imputed")
+abline(0, 1, col="red")
+r = cor(z, df_z$z.stat)
+text(x=0, y=1.8, paste0("R = ", format(r, digits=3)))
+
+
+library(ggplot2)
+
+data.frame(df_z, z.orig = z) %>%
+	ggplot(aes(z.orig, z.stat, fill=r2.pred)) +
+		geom_point() +
+		theme_classic() +
+		theme(aspect.ratio=1) +
+		geom_abline(color="red") + 
+		xlab("Observed z") + 
+		ylab("Imputed z") + 
+		ggtitle("Compare observed and imputed")
+
+
+
+
+plot(df_z$width, abs(z-df_z$z.stat))
+
+
+
+# 2 Issues
+# Make sure input LD is PSD so
+# that eigen values of Sigma.shrink are positive
+# Are alleles aligned?
+# For a given SNP, use only SNPs in the observed LD matrix
+
 
 
 
