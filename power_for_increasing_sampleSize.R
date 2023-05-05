@@ -52,11 +52,11 @@ tab = topTable( fit, coef="Batch2", number=Inf )
 
 
 # Given the observed effect sizes, t-statistic is t = beta/se.
-# Increasing the sample size to n2 will decrease 
+# Increasing the sample size from n1 to to n2 will decrease 
 # the se by a factor of sqrt(n1/n2).
 # Compute power assuming effect sizes and 
-# estimated standandard errors are accurate
-powerWithMoreSampes = function(tab, n1, n2, n_covariates){
+# estimated standard  errors are accurate
+powerWithMoreSamples = function(tab, n1, n2, n_covariates){
 
 	tab$se = with(tab, logFC/t)
 
@@ -88,7 +88,7 @@ n1 = nrow(info)
 # Increased sample size
 n2 = seq(100, 1000, by=100)
 
-res = powerWithMoreSampes( tab, n1, n2, 4)
+res = powerWithMoreSamples( tab, n1, n2, 4)
 
 ggplot(res, aes(SampleSize, nDE)) +
 	geom_point() +
@@ -97,9 +97,6 @@ ggplot(res, aes(SampleSize, nDE)) +
 	theme(aspect.ratio=1) + 
 	xlab("Sample size") +
 	ylab("Number of differentially expressed genes (expected)") 
-
-
-
 
 
 # Chinwe's dataset
@@ -113,7 +110,7 @@ n1 = 44
 # Increased sample size
 n2 = c(n1, seq(50, 300, by=20))
 
-res = powerWithMoreSampes( tab, n1, n2, 6)
+res = powerWithMoreSamples( tab, n1, n2, 6)
 
 ggplot(res, aes(SampleSize, nDE)) +
 	geom_point() +
@@ -123,6 +120,17 @@ ggplot(res, aes(SampleSize, nDE)) +
 	xlim(0, max(n2)) + 
 	xlab("Sample size") +
 	ylab("Number of differentially expressed genes (expected)") 
+
+
+
+# Converting between t-statistic and Cohen's d
+# Where a and b are the sample sizes in each group
+# d = t * sqrt((a+b)/(a*b))
+a = 16
+b = 22
+tab$d = with(tab, t*sqrt((a+b)/(a*b)))
+
+
 
 
 
