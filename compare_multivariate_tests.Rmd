@@ -12,7 +12,11 @@ output:
 <!--- 
 # run analysis
 cd /Users/gabrielhoffman/workspace/repos/misc_vp
+
+
 rmarkdown::render("compare_multivariate_tests.Rmd", output_dir='./', intermediates_dir='./')
+
+# LS_empirical_Dev.R
 
 --->
 
@@ -22,7 +26,7 @@ options(xtable.type="html")
 knitr::opts_chunk$set(
   echo=FALSE,
   warning=FALSE,
-  message=FALSE,
+  message=TRUE,
   error = FALSE,
   tidy = FALSE,
   cache = TRUE,
@@ -75,30 +79,41 @@ meta_sidak = function(pValues, ntests, na.rm=FALSE){
 ```{r simulations, echo=TRUE}
 library(mvtnorm)
 library(ggplot2)
-library(PRROC)
-
-n = 100
-p = 20
+library(poolr)
+library(remaCor)
+library(cowplot)
+library(Matrix)
+library(CovTools)
+library(parallel)
+library(metafor)
+ 
+n = 50
+p = 25
 m = 1
-# rho = .8
-# Sigma = matrix(rho, p, p)
-# diag(Sigma) = 1
+rho = .5
+# Sigma = as.matrix(bdiag(matrix(rho, p/2, p/2), matrix(rho, p/2, p/2)))
+Sigma = matrix(rho, p, p)
+diag(Sigma) = 1
+ 
+n_tests = 3000
 
-n_tests = 1000
+res = mclapply( 1:n_tests, function(i){
 
-res = lapply( 1:n_tests, function(i){
+	message(i)
+	cat(i)
+	print(i)
 	
 	X = matrix(rnorm(n*m), ncol=m)
 
-	isDE = i <= n_tests/2
+	isDE = i <= n_tests/4
 
 	if( isDE ){
-		beta = matrix(rnorm(m*p), m, p)
+		beta = matrix(.6, m, p)
 	}else{
 		beta = matrix(0, m, p)
 	}
 
-	Y = X %*% beta + matrix(rnorm(n*p), n, p)*10
+	Y = X %*% beta + rmvnorm(n, sigma = Sigma)*5
 
 	# Multivariate regression
 	# lm.anova
@@ -111,24 +126,60 @@ res = lapply( 1:n_tests, function(i){
 	p.separate = sapply(fitList, function(x) anova(x)['X', 'Pr(>F)'])
 
 	# combine p-values with sidak correction
-	p.meta_sidak = meta_sidak( p.separate, meff(cor(Y), method="gao") )
+	p.meta_sidak = meta_sidak( p.separate, length(p.separate) )
 
-	# Collapse multiple responses with mean
-	y_mean = rowMeans(Y)
-	fit_mean = lm(y_mean ~ X)
-	p.mean = anova(fit_mean)['X', 'Pr(>F)']
-	
+	# Meta-analysis
+	df = lapply(coef(summary(fit)), function(x) data.frame(beta = x["X", 1], se = x["X", 2]))
+	df = do.call(rbind, df)
+
+	P = residuals(fit)
+	# lambda = corpcor::estimate.lambda(P, verbose=FALSE)
+	# lambda = CovEst.2010RBLW(scale(P))$rho
+	# lambda = decorrelate::eclairs(P, compute="cor")$lambda
+	lambda = ShrinkCovMat::shrinkcovmat.identity(t(scale(P)))$lambdahat
+
+	S = (1-lambda)*cor(P) + lambda*diag(diag(cor(P)), ncol(P))
+	# S = Sigma
+
+	nu = fit$df.residual[1]
+
+	p.LS.lambda = with(df, LS(beta, se, S))$p
+	p.LS.empirical.lambda = with(df, LS.empirical(beta, se, S, nu[1], n.mc.samples=1e3))$p
+	p.RE2C.lambda = with(df, RE2C(beta, se, S))$RE2Cp
+
+	p.LS = with(df, LS(beta, se, cor(P)))$p
+	p.LS.empirical = with(df, LS.empirical(beta, se, cor(P), nu[1], n.mc.samples=1e3))$p
+	p.RE2C= with(df, RE2C(beta, se, cor(P)))$RE2Cp
+
+	p.hotelling = with(df, hotelling(beta, diag(se) %*% cor(P) %*% diag(se), n))
+
+	# fixed effects test
+	fema = with(df, rma(yi=beta, sei=se, method="EE"))
+
 	data.frame(	i 			= i,
 				isDE		= isDE, 
+				beta = beta[1],
+				lambda,
 				p.lm_anova 	= p.lm_anova,
 				# p.separate 	= min(p.separate), 
 				p.meta_sidak = p.meta_sidak,
-				p.mean 		= p.mean )
+				p.LS 		= p.LS,
+				p.LS.empirical = p.LS.empirical,
+				p.RE2C = p.RE2C,
+				p.LS.lambda = p.LS.lambda,
+				p.LS.empirical.lambda = p.LS.empirical.lambda,
+				p.RE2C.lambda = p.RE2C.lambda)#,
+				# p.fixed = fema$pval )
 })
 res = do.call(rbind, res)
+```
 
+```{r aupr, fig.width=12, fig.height=6, cache=FALSE}
+library(PRROC)
+library(ggplot2)
+library(cowplot)
 
-df_aupr = lapply( colnames(res)[-c(1:2)], function(method){
+df_aupr = lapply( colnames(res)[-c(1:4)], function(method){
 
 	pr = pr.curve( -log10(res[[method]][res$isDE]), -log10(res[[method]][!res$isDE]), curve=TRUE )
 	
@@ -136,8 +187,40 @@ df_aupr = lapply( colnames(res)[-c(1:2)], function(method){
 })
 df_aupr = do.call(rbind, df_aupr)
 
-ggplot(df_aupr, aes(method, AUPR, fill=method)) + geom_bar(stat="identity") + theme_bw(14) + theme(aspect.ratio=1) + coord_flip() + ggtitle("Performance of methods for multiple responses") + geom_hline(yintercept=0.5, linetype="dashed", color="grey30")
+fig1 = ggplot(df_aupr, aes(method, AUPR, fill=method)) + 
+	geom_bar(stat="identity") + 
+	theme_bw(14) + 
+	theme(aspect.ratio=1) + 
+	coord_flip() + 
+	ggtitle("Performance of methods for multiple responses") + 
+	geom_hline(yintercept=1/4, linetype="dashed", color="grey30")
+
+df_fpr = lapply( colnames(res)[-c(1:4)], function(method){
+
+	fpr = sum(res[[method]][!res$isDE] < 0.05) / length(res[[method]][!res$isDE])
+	
+	data.frame(method = method, FPR = fpr)
+})
+df_fpr = do.call(rbind, df_fpr)
+
+fig2 = ggplot(df_fpr, aes(method, FPR, fill=method)) + 
+	geom_bar(stat="identity") + 
+	theme_bw(14) + 
+	theme(aspect.ratio=1) + 
+	coord_flip() + 
+	ggtitle("Performance of methods for multiple responses") + 
+	geom_hline(yintercept=0.05, linetype="dashed", color="grey30")
+
+plot_grid(fig1, fig2)
 ```
+
+
+
+
+
+
+
+
 
 
 
