@@ -14,9 +14,12 @@ output:
 cd /Users/gabrielhoffman/workspace/repos/misc_vp
 
 cd /sc/arion/projects/CommonMind/hoffman/misc_vp
+cd /hpc/users/hoffmg01/work/misc_vp/
 R
 
 system("ml git; git pull"); rmarkdown::render("compare_multivariate_tests.Rmd", output_dir='./', intermediates_dir='./')
+
+https://hoffmg01.hpc.mssm.edu/misc_vp/compare_multivariate_tests.html
 
 # LS_empirical_Dev.R
 
@@ -89,7 +92,7 @@ library(CovTools)
 library(parallel)
 library(metafor)
  
-n = 50
+n = 200
 p = 25
 m = 1
 rho = .5
@@ -102,7 +105,7 @@ n_tests = 3000
 res = mclapply( 1:n_tests, function(i){
 
 	RhpcBLASctl::omp_set_num_threads(1) 
-	
+
 	X = matrix(rnorm(n*m), ncol=m)
 
 	isDE = i <= n_tests/4
