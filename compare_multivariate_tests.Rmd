@@ -16,7 +16,7 @@ cd /Users/gabrielhoffman/workspace/repos/misc_vp
 cd /sc/arion/projects/CommonMind/hoffman/misc_vp
 R
 
-rmarkdown::render("compare_multivariate_tests.Rmd", output_dir='./', intermediates_dir='./')
+system("ml git; git pull"); rmarkdown::render("compare_multivariate_tests.Rmd", output_dir='./', intermediates_dir='./')
 
 # LS_empirical_Dev.R
 
@@ -101,9 +101,7 @@ n_tests = 3000
 
 res = mclapply( 1:n_tests, function(i){
 
-	message(i)
-	cat(i)
-	print(i)
+	RhpcBLASctl::omp_set_num_threads(1) 
 	
 	X = matrix(rnorm(n*m), ncol=m)
 
