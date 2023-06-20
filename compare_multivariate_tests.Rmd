@@ -92,7 +92,7 @@ library(CovTools)
 library(parallel)
 library(metafor)
  
-n = 200
+n = 100
 p = 25
 m = 1
 rho = .5
