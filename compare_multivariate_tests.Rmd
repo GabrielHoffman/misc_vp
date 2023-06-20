@@ -13,6 +13,8 @@ output:
 # run analysis
 cd /Users/gabrielhoffman/workspace/repos/misc_vp
 
+cd /sc/arion/projects/CommonMind/hoffman/misc_vp
+R
 
 rmarkdown::render("compare_multivariate_tests.Rmd", output_dir='./', intermediates_dir='./')
 
@@ -170,7 +172,7 @@ res = mclapply( 1:n_tests, function(i){
 				p.LS.empirical.lambda = p.LS.empirical.lambda,
 				p.RE2C.lambda = p.RE2C.lambda)#,
 				# p.fixed = fema$pval )
-})
+}, mc.cores=12)
 res = do.call(rbind, res)
 ```
 
