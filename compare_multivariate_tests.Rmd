@@ -156,7 +156,7 @@ res = mclapply( 1:n_tests, function(i){
 	p.LS.empirical = with(df, LS.empirical(beta, se, cor(P), nu[1], n.mc.samples=1e3))$p
 	p.RE2C= with(df, RE2C(beta, se, cor(P)))$RE2Cp
 
-	p.hotelling = with(df, hotelling(beta, diag(se) %*% cor(P) %*% diag(se), n))
+	p.hotelling = with(df, hotelling(beta, diag(se) %*% cor(P) %*% diag(se), n))$p.value
 
 	# fixed effects test
 	fema = with(df, rma(yi=beta, sei=se, method="EE"))
