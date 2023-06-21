@@ -92,15 +92,15 @@ library(CovTools)
 library(parallel)
 library(metafor)
  
-n = 100
-p = 5
+n = 50
+p = 10
 m = 1
 rho = .5
 # Sigma = as.matrix(bdiag(matrix(rho, p/2, p/2), matrix(rho, p/2, p/2)))
 Sigma = matrix(rho, p, p)
 diag(Sigma) = 1
  
-n_tests = 3000
+n_tests = 1000
 
 res = mclapply( 1:n_tests, function(i){
 
@@ -175,7 +175,7 @@ res = mclapply( 1:n_tests, function(i){
 				p.LS.empirical.lambda = p.LS.empirical.lambda,
 				p.RE2C.lambda = p.RE2C.lambda)#,
 				# p.fixed = fema$pval )
-}, mc.cores=12)
+}, mc.cores=24)
 res = do.call(rbind, res)
 ```
 
