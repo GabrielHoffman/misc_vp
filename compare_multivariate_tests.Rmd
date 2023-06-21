@@ -111,7 +111,7 @@ res = mclapply( 1:n_tests, function(i){
 	isDE = i <= n_tests/4
 
 	if( isDE ){
-		beta = matrix(1, m, p)
+		beta = matrix(.1, m, p)
 	}else{
 		beta = matrix(0, m, p)
 	}
