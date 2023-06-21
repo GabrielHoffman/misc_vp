@@ -100,7 +100,7 @@ rho = .5
 Sigma = matrix(rho, p, p)
 diag(Sigma) = 1
  
-n_tests = 300
+n_tests = 3000
 
 res = mclapply( 1:n_tests, function(i){
 
