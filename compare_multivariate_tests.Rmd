@@ -95,7 +95,7 @@ library(metafor)
 n = 50
 p = 20
 m = 1
-rho = .5
+rho = 0
 # Sigma = as.matrix(bdiag(matrix(rho, p/2, p/2), matrix(rho, p/2, p/2)))
 Sigma = matrix(rho, p, p)
 diag(Sigma) = 1
