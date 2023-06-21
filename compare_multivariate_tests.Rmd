@@ -195,7 +195,7 @@ df_aupr = do.call(rbind, df_aupr)
 fig1 = ggplot(df_aupr, aes(method, AUPR, fill=method)) + 
 	geom_bar(stat="identity") + 
 	theme_bw(14) + 
-	theme(aspect.ratio=1) + 
+	theme(aspect.ratio=1, legend.position="none") + 
 	coord_flip() + 
 	ggtitle("Performance of methods for multiple responses") + 
 	geom_hline(yintercept=1/4, linetype="dashed", color="grey30")
@@ -211,7 +211,7 @@ df_fpr = do.call(rbind, df_fpr)
 fig2 = ggplot(df_fpr, aes(method, FPR, fill=method)) + 
 	geom_bar(stat="identity") + 
 	theme_bw(14) + 
-	theme(aspect.ratio=1) + 
+	theme(aspect.ratio=1, legend.position="none") + 
 	coord_flip() + 
 	ggtitle("Performance of methods for multiple responses") + 
 	geom_hline(yintercept=0.05, linetype="dashed", color="grey30")
