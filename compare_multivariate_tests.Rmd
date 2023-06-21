@@ -95,7 +95,7 @@ library(metafor)
 n = 20
 p = 5
 m = 1
-rho = 0
+rho = .5
 # Sigma = as.matrix(bdiag(matrix(rho, p/2, p/2), matrix(rho, p/2, p/2)))
 Sigma = matrix(rho, p, p)
 diag(Sigma) = 1
@@ -111,7 +111,7 @@ res = mclapply( 1:n_tests, function(i){
 	isDE = i <= n_tests/4
 
 	if( isDE ){
-		beta = matrix(.6, m, p)
+		beta = matrix(1, m, p)
 	}else{
 		beta = matrix(0, m, p)
 	}
