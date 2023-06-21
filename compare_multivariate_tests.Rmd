@@ -93,14 +93,14 @@ library(parallel)
 library(metafor)
  
 n = 100
-p = 80
+p = 5
 m = 1
 rho = .5
 # Sigma = as.matrix(bdiag(matrix(rho, p/2, p/2), matrix(rho, p/2, p/2)))
 Sigma = matrix(rho, p, p)
 diag(Sigma) = 1
  
-n_tests = 3000
+n_tests = 300
 
 res = mclapply( 1:n_tests, function(i){
 
@@ -136,13 +136,15 @@ res = mclapply( 1:n_tests, function(i){
 	df = do.call(rbind, df)
 
 	P = residuals(fit)
-	# lambda = corpcor::estimate.lambda(P, verbose=FALSE)
+	lambda = corpcor::estimate.lambda(P, verbose=FALSE)
 	# lambda = CovEst.2010RBLW(scale(P))$rho
 	# lambda = decorrelate::eclairs(P, compute="cor")$lambda
-	lambda = ShrinkCovMat::shrinkcovmat.identity(t(scale(P)))$lambdahat
+	# lambda = ShrinkCovMat::shrinkcovmat.identity(t(scale(P)))$lambdahat
 
 	S = (1-lambda)*cor(P) + lambda*diag(diag(cor(P)), ncol(P))
-	# S = Sigma
+
+	# True correlction
+	S = Sigma
 
 	nu = fit$df.residual[1]
 
