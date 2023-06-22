@@ -92,8 +92,8 @@ library(CovTools)
 library(parallel)
 library(metafor)
  
-n = 50
-p = 40
+n = 100
+p = 15
 m = 1
 rho = .5
 # Sigma = as.matrix(bdiag(matrix(rho, p/2, p/2), matrix(rho, p/2, p/2)))
@@ -116,7 +116,7 @@ res = mclapply( 1:n_tests, function(i){
 		beta = matrix(0, m, p)
 	}
 
-	Y = X %*% beta + rmvnorm(n, sigma = Sigma)*5
+	Y = X %*% beta + mvtnorm::rmvnorm(n, sigma = Sigma)*5
 
 	# Multivariate regression
 	# lm.anova
@@ -136,9 +136,9 @@ res = mclapply( 1:n_tests, function(i){
 	df = do.call(rbind, df)
 
 	P = residuals(fit)
-	lambda = corpcor::estimate.lambda(P, verbose=FALSE)
+	# lambda = corpcor::estimate.lambda(P, verbose=FALSE)
 	# lambda = CovEst.2010RBLW(scale(P))$rho
-	# lambda = decorrelate::eclairs(P, compute="cor")$lambda
+	lambda = decorrelate::eclairs(P, compute="cor")$lambda
 	# lambda = ShrinkCovMat::shrinkcovmat.identity(t(scale(P)))$lambdahat
 
 	S = (1-lambda)*cor(P) + lambda*diag(diag(cor(P)), ncol(P))
@@ -149,11 +149,12 @@ res = mclapply( 1:n_tests, function(i){
 	nu = fit$df.residual[1]
 
 	p.LS.lambda = with(df, LS(beta, se, S))$p
-	p.LS.empirical.lambda = with(df, LS.empirical(beta, se, S, nu[1], n.mc.samples=1e3))$p
+	p.LS.empirical.lambda.remaCor = with(df, remaCor::LS.empirical(beta, se, S, nu[1], n.mc.samples=1e3))$p
+	# p.LS.empirical.lambda = with(df, LS.empirical(beta, se, S, nu[1], n.mc.samples=1e3))$p
 	p.RE2C.lambda = with(df, RE2C(beta, se, S))$RE2Cp
 
 	p.LS = with(df, LS(beta, se, cor(P)))$p
-	p.LS.empirical = with(df, LS.empirical(beta, se, cor(P), nu[1], n.mc.samples=1e3))$p
+	# p.LS.empirical = with(df, LS.empirical(beta, se, cor(P), nu[1], n.mc.samples=1e3))$p
 	p.RE2C= with(df, RE2C(beta, se, cor(P)))$RE2Cp
 
 	p.hotelling = with(df, hotelling(beta, diag(se) %*% cor(P) %*% diag(se), n))$p.value
@@ -169,10 +170,11 @@ res = mclapply( 1:n_tests, function(i){
 				# p.separate 	= min(p.separate), 
 				p.meta_sidak = p.meta_sidak,
 				p.LS 		= p.LS,
-				p.LS.empirical = p.LS.empirical,
+				# p.LS.empirical = p.LS.empirical,
 				p.RE2C = p.RE2C,
 				p.LS.lambda = p.LS.lambda,
-				p.LS.empirical.lambda = p.LS.empirical.lambda,
+				# p.LS.empirical.lambda = p.LS.empirical.lambda,
+				p.LS.empirical.lambda.remaCor = p.LS.empirical.lambda.remaCor,
 				p.RE2C.lambda = p.RE2C.lambda,
 				p.hotelling = p.hotelling)#,
 				# p.fixed = fema$pval )
