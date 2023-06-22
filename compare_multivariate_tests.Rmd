@@ -92,8 +92,8 @@ library(CovTools)
 library(parallel)
 library(metafor)
  
-n = 100
-p = 50
+n = 50
+p = 40
 m = 1
 rho = .5
 # Sigma = as.matrix(bdiag(matrix(rho, p/2, p/2), matrix(rho, p/2, p/2)))
