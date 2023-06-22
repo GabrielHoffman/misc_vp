@@ -79,6 +79,12 @@ meta_sidak = function(pValues, ntests, na.rm=FALSE){
 	# return corrected p-value
 	1 - (1 - min(pValues, na.rm=na.rm))^ntests
 }
+
+meta_fisher = function(pValues){
+	stat = -2 * sum(log(pValues))
+	k = nrow(length(pValues))
+	pchisq(stat, 2*k, lower.tail=FALSE)
+}
 ```
 
 ```{r simulations, echo=TRUE}
@@ -131,6 +137,9 @@ res = mclapply( 1:n_tests, function(i){
 	# combine p-values with sidak correction
 	p.meta_sidak = meta_sidak( p.separate, length(p.separate) )
 
+	p.fisher = meta_fisher(p.separate)
+
+
 	# Meta-analysis
 	df = lapply(coef(summary(fit)), function(x) data.frame(beta = x["X", 1], se = x["X", 2]))
 	df = do.call(rbind, df)
@@ -166,6 +175,7 @@ res = mclapply( 1:n_tests, function(i){
 				isDE		= isDE, 
 				beta = beta[1],
 				lambda,
+				p.fisher = p.fisher,
 				p.lm_anova 	= p.lm_anova,
 				# p.separate 	= min(p.separate), 
 				p.meta_sidak = p.meta_sidak,
