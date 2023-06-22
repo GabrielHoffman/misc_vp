@@ -144,7 +144,7 @@ res = mclapply( 1:n_tests, function(i){
 	S = (1-lambda)*cor(P) + lambda*diag(diag(cor(P)), ncol(P))
 
 	# True correlction
-	S = Sigma
+	# S = Sigma
 
 	nu = fit$df.residual[1]
 
