@@ -92,8 +92,8 @@ library(CovTools)
 library(parallel)
 library(metafor)
  
-n = 350
-p = 100
+n = 50
+p = 20
 m = 1
 rho = .5
 # Sigma = as.matrix(bdiag(matrix(rho, p/2, p/2), matrix(rho, p/2, p/2)))
@@ -111,7 +111,7 @@ res = mclapply( 1:n_tests, function(i){
 	isDE = i <= n_tests/4
 
 	if( isDE ){
-		beta = matrix(.1, m, p)
+		beta = matrix(.6, m, p)
 	}else{
 		beta = matrix(0, m, p)
 	}
