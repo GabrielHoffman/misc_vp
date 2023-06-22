@@ -82,7 +82,7 @@ meta_sidak = function(pValues, ntests, na.rm=FALSE){
 
 meta_fisher = function(pValues){
 	stat = -2 * sum(log(pValues))
-	k = nrow(length(pValues))
+	k = length(pValues)
 	pchisq(stat, 2*k, lower.tail=FALSE)
 }
 ```
@@ -138,7 +138,6 @@ res = mclapply( 1:n_tests, function(i){
 	p.meta_sidak = meta_sidak( p.separate, length(p.separate) )
 
 	p.fisher = meta_fisher(p.separate)
-
 
 	# Meta-analysis
 	df = lapply(coef(summary(fit)), function(x) data.frame(beta = x["X", 1], se = x["X", 2]))
