@@ -27,12 +27,15 @@
 #' # This small datasets should take ~30s
 #' res_mash <- run_mash(res.dl, "group_idstim")
 #' 
-#' 
+#' # Composite test based on posterior probabilities
+#' # to identify effect present in *at least 1* monocyte type
+#' # and *NO* T-cell type.
 #' include = c("CD14+ Monocytes", "FCGR3A+ Monocytes")
 #' exclude = c('CD4 T cells', 'CD8 T cells')
 #' 
 #' prob = compositePosteriorTest(res_mash, include, exclude)
 #' 
+#' # examine the lFSR for top gene
 #' get_lfsr(x$model)[which.max(prob),,drop=FALSE]
 #
 #' @export
@@ -63,18 +66,15 @@ compositePosteriorTest = function( x, include, exclude, test = c("at least 1", "
 	prob = 1 - get_lfsr(x$model)
 
 	# probability that *NO* cell types have a non-zero effect
-	prob_excl = apply(1 - prob[,exclude], 1, prod, na.rm=TRUE)
-	prob_excl[is.na(prob_excl)] = 1
+	prob_excl = apply(1 - prob[,exclude,drop=FALSE], 1, prod, na.rm=TRUE)
 
 	if( test == "at least 1"){
 		# Probability at least 1, (i.e. probability that not none)
-		prob_incl = 1 - apply(1 - prob[,include], 1, prod, na.rm=TRUE)
-		prob_incl[is.na(prob_include_atLeast)] = 0
+		prob_incl = 1 - apply(1 - prob[,include,drop=FALSE], 1, prod, na.rm=TRUE)
 	}else if( test == "all"){
 		# for each gene
 		# probability that *ALL* cell types have a non-zero effect
 		prob_incl = apply(prob[,include], 1, prod, na.rm=TRUE)
-		prob_incl[is.na(prob_incl)] = 0
 	}
 
 	prob_incl * prob_excl
