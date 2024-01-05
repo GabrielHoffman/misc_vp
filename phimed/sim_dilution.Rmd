@@ -1,0 +1,149 @@
+---
+title: "Simulated dilution for PheMed"
+subtitle: 'Evaluate genetic correlation with mis-labeling'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+output: 
+  html_document:
+    toc: true
+    smart: true
+---
+
+
+<!--- 
+
+cd /sc/arion/projects/CommonMind/hoffman/secoia_analysis
+ml python git pandoc gcc/11.2.0
+git pull origin main
+R --vanilla
+
+system("git pull origin main"); rmarkdown::render("sim_dilution.Rmd");
+
+
+# https://hoffmg01.u.hpc.mssm.edu/sim_dilution.html
+
+--->
+
+# Load packages
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning=FALSE,
+  message=FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  dev = c("png", "pdf"),
+  package.startup.message = FALSE,
+  cache = TRUE,
+  cache.lazy = FALSE)
+```
+
+```{r load.packages, cache=FALSE}
+library(Rfast)
+library(tidyverse)
+library(parallel)
+library(ggplot2)
+library(cowplot)
+
+ppv = function(y.true, y.est){
+
+	stopifnot(length(y.true) == length(y.est))
+
+	i = y.true == 1
+	sum(y.est[i] == 1) / sum(i)
+}
+
+npv = function(y.true, y.est){
+
+	stopifnot(length(y.true) == length(y.est))
+
+	i = y.true == 0
+	sum(y.est[i] == 0) / sum(i)
+}
+
+get_coef = function(y, X){
+	coef_hat = sapply(seq(p), function(i){
+		fit = glm(y ~ X[,i], family="binomial")
+		coef(fit)[2]
+		})
+	c(coef_hat)
+}
+```
+
+# Run analysis
+```{r run}
+n_array  = c(1000, 5000, 10000, 20000)
+# n_array  = c(300, 1000, 1200, 1600)
+p = 1000
+
+df = lapply(n_array, function(n){
+	X = matrnorm(n,p)
+
+	beta_true = rnorm(p) 
+	gamma_true = beta_true + rnorm(p, 0, 1)
+
+	eta1 = X %*% beta_true + rnorm(n)
+	eta2 = X %*% gamma_true + rnorm(n)
+
+	cor(beta_true, gamma_true)^2
+	cor(eta1, eta2)^2
+
+	pr1 = 1/(1+exp(-eta1))        
+	y1 = rbinom(length(pr1),1,pr1) 
+
+	pr2 = 1/(1+exp(-eta2))        
+	y2 = rbinom(length(pr2),1,pr2)         
+
+	n_miss_array = as.integer(seq(10, 0.7*n, length.out = 20))
+
+	df = mclapply(n_miss_array, function(n_miss){
+
+		# missclassify first n_miss samples
+		y3 = y2
+		y3[seq(n_miss)] = rbinom(n_miss, 1, c(.5, .5))
+
+		phi = 1 / (ppv(y2, y3) + npv(y2, y3) - 1)
+
+		beta_hat = get_coef(y1, X)
+		gamma_hat = get_coef(y3, X)
+
+		tibble(n, n_miss, phi, phi.expected = 1/(1 - n_miss/n),
+				# True corr
+				rg.true = cor(beta_true, gamma_true),
+				# estimated corr
+				rg.est = cor(beta_hat, gamma_hat))
+	}, mc.cores=4)
+	bind_rows(df)
+})
+df = bind_rows(df)
+```
+
+```{r plot, eval=FALSE}
+ggplot(df, aes(n_miss, rg.est)) +
+	geom_point() +
+	theme_classic() +
+	theme(aspect.ratio=1) +
+	scale_y_continuous(limits=c(0, 1), expand=c(0,0), name = "Genetic correlation") +
+	geom_hline(yintercept = df$rg.true[1], linetype='dashed', color="grey30") +
+	geom_smooth() +
+	facet_wrap(~ n, nrow=1) 
+```
+
+```{r plot2, fig.width=12, cache=FALSE}
+fitList = lapply( unique(df$n), function(value){
+	df2 = df %>%
+		filter(n == value) 
+
+	ggplot(df2, aes(n_miss / n, rg.est)) +
+		geom_point() +
+		theme_classic() +
+		theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) +
+		scale_y_continuous(limits=c(0, 1), expand=c(0,0), name = "Genetic correlation") +
+		geom_hline(yintercept = df2$rg.true[1], linetype='dashed', color="grey30") +
+		geom_smooth() +	
+		scale_x_continuous(sec.axis = sec_axis(~ 1 / (1-.)), name = "Fraction samples mislabeled") +
+		ggtitle(paste("n =", value))
+})
+
+plot_grid(plotlist = fitList, nrow=1)
+```
