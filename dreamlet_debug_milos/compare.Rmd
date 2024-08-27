@@ -70,7 +70,7 @@ plot(t(a$weights), t(b$weights), xlab="old", ylab="v131", main=paste("weights: "
 
 # Voom 
 
-```{r voom, fig.height=40, eval=FALSE}}
+```{r voom, fig.height=40, eval=FALSE}
 fit1 = lm.wfit( a$design, t(a$E), c(a$weights))
 fit2 = lm.wfit( b$design, t(b$E), c(b$weights))
 
