@@ -18,8 +18,6 @@ rmarkdown::render("compare.Rmd")
 
 https://hoffmg01.hpc.mssm.edu/misc_vp/compare_multivariate_tests.html
 
-# LS_empirical_Dev.R
-
 --->
 
 ```{r load.knitr, echo=FALSE}
@@ -38,9 +36,7 @@ knitr::opts_chunk$set(
 options(markdown.HTML.stylesheet = 'css/custom.css')
 ```
 
-# /sc/arion/scratch/hoffmg01/milos/
-# cd /sc/arion/scratch/hoffmg01/milos/
-
+```{r example}
 library(tidyverse)
 library(ggplot2)
 library(scattermore)
@@ -65,34 +61,35 @@ data = merge(t(a$E), data.frame(colData(pb1)), by="row.names")
 
 boxplot(CCN2 ~ cerad_4_12_24, data, main=gene)
 
-
 plot(t(a$weights), t(b$weights), xlab="old", ylab="v131", main=paste("weights: ", CT, gene))
+```
 
 
 
 
 
-
+```{r voom, fig.height=40}
 fit1 = lm.wfit( a$design, t(a$E), c(a$weights))
 fit2 = lm.wfit( b$design, t(b$E), c(b$weights))
 
 cbind(fit1$coefficients, fit2$coefficients)
 
-
 fig = plotVoom(res.proc1)
-ggsave(fig, file="figures/plotVoom_old.pdf", height=40)
+fig
+# ggsave(fig, file="figures/plotVoom_old.pdf", height=40)
 
-fig = plotVoom(res.proc2)
-ggsave(fig, file="figures/plotVoom_v131.pdf", height=40)
-
-
-
-
+# fig = plotVoom(res.proc2)
+# ggsave(fig, file="figures/plotVoom_v131.pdf", height=40)
+```
 
 
 
 
 
+
+
+
+```{r}
 file = "old/cerad_subtype_dx.csv"
 tab1 = read.table(file, row.names=1, header=TRUE, sep=',') %>%
 			as_tibble
@@ -115,8 +112,10 @@ fig = ggplot(df, aes(logFC.x, logFC.y, color=ifelse(adj.P.Val.x < 0.05, "red", "
 		ylab("logFC (v131)") 
 
 ggsave(fig, file="figures/logFC.pdf", height=40)
+```
 
 
+```{r}
 # t-stat
 fig = ggplot(df, aes(t.x, t.y, color=ifelse(adj.P.Val.x < 0.05, "red", "black"))) +
 		geom_scattermore(pointsize=3) +
@@ -140,5 +139,7 @@ cor(df$t.x, df$t.y)
 df %>%
 	head %>%
 	data.frame
+```
 
-#     
+
+
