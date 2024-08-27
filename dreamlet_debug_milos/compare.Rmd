@@ -17,20 +17,22 @@ R
 system("ml git; git pull"); rmarkdown::render("compare.Rmd")
 
 
-https://hoffmg01.hpc.mssm.edu/misc_vp/compare_multivariate_tests.html
+https://hoffmg01.hpc.mssm.edu/milos/compare.html
 
 --->
 
-```{r load.knitr, echo=FALSE}
+```{r load}
 library(tidyverse)
 library(ggplot2)
 library(scattermore)
 library(dreamlet)
+```
 
+```{r load.knitr, echo=FALSE}
 options(xtable.type="html")
 
 knitr::opts_chunk$set(
-  echo=FALSE,
+  echo=TRUE,
   warning=FALSE,
   message=TRUE,
   error = FALSE,
@@ -42,7 +44,7 @@ knitr::opts_chunk$set(
 options(markdown.HTML.stylesheet = 'css/custom.css')
 ```
 
-```{r example, eval=FALSE}
+```{r example}
 res.proc1 = readRDS("/sc/arion/scratch/hoffmg01/milos/old/cerad_resproc_subtype_dx.RDS")
 res.proc2 = readRDS("/sc/arion/scratch/hoffmg01/milos/v131/cerad_resproc_subtype_dx.RDS")
 
@@ -70,7 +72,7 @@ plot(t(a$weights), t(b$weights), xlab="old", ylab="v131", main=paste("weights: "
 
 # Voom 
 
-```{r voom, fig.height=40, eval=FALSE}
+```{r voom, fig.height=40}
 fit1 = lm.wfit( a$design, t(a$E), c(a$weights))
 fit2 = lm.wfit( b$design, t(b$E), c(b$weights))
 
@@ -123,13 +125,16 @@ ggplot(df, aes(t.x, t.y, color=ifelse(adj.P.Val.x < 0.05, "red", "black"))) +
 		geom_abline(color="red") +
 		xlab("t (old)") +
 		ylab("t (v131)")
+```
 
+## Count DE genes
+```{r}
 sum(df$adj.P.Val.x < 0.05)
 sum(df$adj.P.Val.y < 0.05)
+```
 
-
-cor(df$t.x, df$t.y)
-
+## top hits
+```{r}
 df %>%
 	head %>%
 	data.frame
