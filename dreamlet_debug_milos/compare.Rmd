@@ -11,7 +11,10 @@ output:
 
 <!--- 
 # run analysis
-cd /sc/arion/scratch/hoffmg01/milos
+cd /hpc/users/hoffmg01/work/misc_vp/dreamlet_debug_milos
+R
+
+system("ml git; git pull");
 
 
 rmarkdown::render("compare.Rmd")
@@ -37,6 +40,7 @@ options(markdown.HTML.stylesheet = 'css/custom.css')
 ```
 
 ```{r example}
+setwd("/sc/arion/scratch/hoffmg01/milos")
 library(tidyverse)
 library(ggplot2)
 library(scattermore)
@@ -74,12 +78,9 @@ fit2 = lm.wfit( b$design, t(b$E), c(b$weights))
 
 cbind(fit1$coefficients, fit2$coefficients)
 
-fig = plotVoom(res.proc1)
-fig
-# ggsave(fig, file="figures/plotVoom_old.pdf", height=40)
+plotVoom(res.proc1) + ggtitle("old")
 
-# fig = plotVoom(res.proc2)
-# ggsave(fig, file="figures/plotVoom_v131.pdf", height=40)
+plotVoom(res.proc2)) + ggtitle("v131")
 ```
 
 
@@ -87,9 +88,11 @@ fig
 
 
 
+# ggsave(fig, file="figures/plotVoom_old.pdf", height=40)
 
 
-```{r}
+
+```{r logFC, fig.height=40}
 file = "old/cerad_subtype_dx.csv"
 tab1 = read.table(file, row.names=1, header=TRUE, sep=',') %>%
 			as_tibble
@@ -101,7 +104,7 @@ tab2 = read.table(file, row.names=1, header=TRUE, sep=',') %>%
 df = inner_join(tab1, tab2, by=c("assay", 'ID'))
 
 # logFC
-fig = ggplot(df, aes(logFC.x, logFC.y, color=ifelse(adj.P.Val.x < 0.05, "red", "black"))) +
+ggplot(df, aes(logFC.x, logFC.y, color=ifelse(adj.P.Val.x < 0.05, "red", "black"))) +
 		geom_scattermore(pointsize=3) +
 		facet_wrap(~assay, ncol=3, scales="free") +
 		theme_bw() +
@@ -110,14 +113,12 @@ fig = ggplot(df, aes(logFC.x, logFC.y, color=ifelse(adj.P.Val.x < 0.05, "red", "
 		geom_abline(color="red") +
 		xlab("logFC (old)") +
 		ylab("logFC (v131)") 
-
-ggsave(fig, file="figures/logFC.pdf", height=40)
 ```
 
 
-```{r}
+```{r t, fig.height=40}
 # t-stat
-fig = ggplot(df, aes(t.x, t.y, color=ifelse(adj.P.Val.x < 0.05, "red", "black"))) +
+ggplot(df, aes(t.x, t.y, color=ifelse(adj.P.Val.x < 0.05, "red", "black"))) +
 		geom_scattermore(pointsize=3) +
 		facet_wrap(~assay, ncol=3, scales="free") +
 		theme_bw() +
@@ -127,14 +128,11 @@ fig = ggplot(df, aes(t.x, t.y, color=ifelse(adj.P.Val.x < 0.05, "red", "black"))
 		xlab("t (old)") +
 		ylab("t (v131)")
 
-ggsave(fig, file="figures/tstat.pdf", height=40)
-
 sum(df$adj.P.Val.x < 0.05)
 sum(df$adj.P.Val.y < 0.05)
 
 
 cor(df$t.x, df$t.y)
-
 
 df %>%
 	head %>%
