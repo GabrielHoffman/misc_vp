@@ -19,6 +19,7 @@ system("ml git; git pull");
 
 rmarkdown::render("compare.Rmd")
 
+
 https://hoffmg01.hpc.mssm.edu/misc_vp/compare_multivariate_tests.html
 
 --->
@@ -32,7 +33,7 @@ knitr::opts_chunk$set(
   message=TRUE,
   error = FALSE,
   tidy = FALSE,
-  cache = TRUE,
+  cache = FALSE,
   dev = c("png", "pdf"), 
   fig.width=7, fig.height=7)
 
@@ -60,17 +61,18 @@ b = res.proc2[[CT]][gene,]
 
 # plot(t(a$E), t(b$E))
 
-
+# examine top hit
 data = merge(t(a$E), data.frame(colData(pb1)), by="row.names")
-
 boxplot(CCN2 ~ cerad_4_12_24, data, main=gene)
 
+# examine weights
+# the weights from the old version are _extreme_
 plot(t(a$weights), t(b$weights), xlab="old", ylab="v131", main=paste("weights: ", CT, gene))
 ```
 
 
 
-
+# Voom 
 
 ```{r voom, fig.height=40}
 fit1 = lm.wfit( a$design, t(a$E), c(a$weights))
@@ -86,11 +88,7 @@ plotVoom(res.proc2)) + ggtitle("v131")
 
 
 
-
-
-# ggsave(fig, file="figures/plotVoom_old.pdf", height=40)
-
-
+# logFC 
 
 ```{r logFC, fig.height=40}
 file = "old/cerad_subtype_dx.csv"
@@ -116,6 +114,8 @@ ggplot(df, aes(logFC.x, logFC.y, color=ifelse(adj.P.Val.x < 0.05, "red", "black"
 ```
 
 
+
+# t-statistic 
 ```{r t, fig.height=40}
 # t-stat
 ggplot(df, aes(t.x, t.y, color=ifelse(adj.P.Val.x < 0.05, "red", "black"))) +
