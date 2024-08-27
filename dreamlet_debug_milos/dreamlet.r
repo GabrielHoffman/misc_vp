@@ -43,7 +43,7 @@ pb <- aggregateToPseudoBulk(sce, assay ="counts", cluster_id = "subtype", sample
 saveRDS(pb, file="pb.RDS")
 
 
-form =  ~ cerad_4_12_24 + scale(age_4_12_24) #+ (1|gender_4_12_24) + (1|set) + log(n_genes)
+form = ~ cerad_4_12_24 + scale(age_4_12_24) #+ (1|gender_4_12_24) + (1|set) + log(n_genes)
 res.proc = processAssays( pb, form)#, assays="ASTR" )
 
 saveRDS(res.proc, file = "cerad_resproc_subtype_dx.RDS")

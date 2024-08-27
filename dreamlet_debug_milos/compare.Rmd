@@ -14,10 +14,7 @@ output:
 cd /hpc/users/hoffmg01/work/misc_vp/dreamlet_debug_milos
 R
 
-system("ml git; git pull");
-
-
-rmarkdown::render("compare.Rmd")
+system("ml git; git pull"); rmarkdown::render("compare.Rmd")
 
 
 https://hoffmg01.hpc.mssm.edu/misc_vp/compare_multivariate_tests.html
@@ -82,7 +79,7 @@ cbind(fit1$coefficients, fit2$coefficients)
 
 plotVoom(res.proc1) + ggtitle("old")
 
-plotVoom(res.proc2)) + ggtitle("v131")
+plotVoom(res.proc2) + ggtitle("v131")
 ```
 
 
