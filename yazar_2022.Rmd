@@ -1,0 +1,109 @@
+---
+title: "OneK1K single cell RNA-seq"
+subtitle: 'https://onek1k.org'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+output: 
+  html_document:
+    toc: true
+    smart: true
+    self_contained: true
+---
+
+<!---
+
+
+cd /sc/arion/projects/CommonMind/hoffman/crumblr_analysis/Yazar_Science_2022/
+R --vanilla
+
+system("git pull"); rmarkdown::render("yazar_2022.Rmd");
+
+
+# https://hoffmg01.hpc.mssm.edu/crumblr_analysis/Yazar_Science_2022/yazar_2022.html
+
+
+
+# cd 
+
+--->
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning=FALSE,
+  message=FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  dev = c("png", "pdf"),
+  package.startup.message = FALSE,
+  cache = TRUE,
+  cache.lazy = FALSE)
+```
+
+
+```{r load, cache=FALSE}
+library(SingleCellExperiment)
+library(zellkonverter)
+library(dreamlet)
+library(tidyverse) 
+library(ggplot2)
+```
+
+```{r read.data}
+# read single cell RNA-seq
+file = "/sc/arion/projects/CommonMind/hoffman/scRNAseq_data/Yazar_Science_2022/08984b3c-3189-4732-be22-62f1fe8f15a4.h5ad"
+sce = readH5AD(file, use_hdf5=TRUE)
+counts(sce) = assay(sce, "X")
+
+# Compute pseudobulk by donor
+pb <- aggregateToPseudoBulk(sce,
+    assay = "counts",     
+    cluster_id = "cell_type",  
+    sample_id = "donor_id",
+    verbose = FALSE)
+rm(sce)
+```
+
+
+
+```{r voom}
+param = SnowParam(12)
+
+# form = ~ age + (1|sex) + (1|pool_number) 
+form = ~ age + sex
+
+res.proc <- processAssays(pb, form, BPPARAM=param)
+
+res.proc
+
+details(res.proc)
+```
+
+```{r voom.plot}
+plotVoom(res.proc)
+```
+
+```{r fitVarPart}
+vp.lst <- fitVarPart(res.proc, form, BPPARAM=param)
+```
+
+```{r plotVarPart}
+plotVarPart(vp.lst, label.angle = 60)
+```
+
+```{r dreamlet}
+res.dl <- dreamlet(res.proc, form, BPPARAM=param)
+```
+
+```{r plotVolcano}
+plotVolcano(res.dl, coef = "age")
+```
+
+
+
+
+
+
+
+
