@@ -97,7 +97,7 @@ res.dl <- dreamlet(res.proc, form, BPPARAM=param)
 ```
 
 ```{r plotVolcano, fig.width=7, fig.height=20}
-plotVolcano(res.dl, coef = "age", nGenes=1)
+plotVolcano(res.dl, coef = "age", nGenes=1, scales = "free_y") 
 ```
 
 
