@@ -13,7 +13,7 @@ output:
 <!---
 
 
-cd /sc/arion/projects/CommonMind/hoffman/crumblr_analysis/Yazar_Science_2022/
+cd /hpc/users/hoffmg01/work/misc_vp
 R --vanilla
 
 system("git pull"); rmarkdown::render("yazar_2022.Rmd");
@@ -80,7 +80,7 @@ res.proc
 details(res.proc)
 ```
 
-```{r voom.plot}
+```{r voom.plot, fig.width=7, fig.height=20}
 plotVoom(res.proc)
 ```
 
@@ -88,7 +88,7 @@ plotVoom(res.proc)
 vp.lst <- fitVarPart(res.proc, form, BPPARAM=param)
 ```
 
-```{r plotVarPart}
+```{r plotVarPart, fig.width=7, fig.height=20}
 plotVarPart(vp.lst, label.angle = 60)
 ```
 
@@ -96,7 +96,7 @@ plotVarPart(vp.lst, label.angle = 60)
 res.dl <- dreamlet(res.proc, form, BPPARAM=param)
 ```
 
-```{r plotVolcano}
+```{r plotVolcano, fig.width=7, fig.height=20}
 plotVolcano(res.dl, coef = "age")
 ```
 
