@@ -121,14 +121,18 @@ plot( 100*fracs[,cellType] ~ nReads, ylab="Cell percentage (CD8+, alpha-beta T c
 plot( nReads ~ pb$age, xlab="Age", log='y')
 ```
 
+df_merge
+
+
+
 
 ```{r topTable}
 tab = topTable(res.dl, coef="age", number=Inf) %>%
   as_tibble %>%
-    group_by(assay) %>%
-    summarize(nDown = sum(adj.P.Val < 0.05 & logFC < 0), nUp = sum(adj.P.Val < 0.05 & logFC > 0), nGenes = length(adj.P.Val)) %>%
-    arrange(nGenes) %>%
-    data.frame
+  group_by(assay) %>%
+  summarize(nDown = sum(adj.P.Val < 0.05 & logFC < 0), nUp = sum(adj.P.Val < 0.05 & logFC > 0), nGenes = length(adj.P.Val)) %>%
+  arrange(nGenes) %>%
+  data.frame
 
 ggplot(tab) +
   geom_bar(aes(assay, nUp), stat="identity", fill="red3") + 
@@ -155,25 +159,51 @@ par(pty="s")
 plot(ENSG00000187514 ~ age, df_merge)
 ```
 
+```{r strict.results}
+df_merge_strict <- extractData(res.proc.strict, cellType)
+
+dim(df_merge)
+dim(df_merge_strict)
+
+genes_strict = rownames(assay(res.proc.strict, cellType))
 
 
+tab = topTable(res.dl, coef="age", number=Inf) %>%
+  as_tibble %>%
+  filter(ID %in% genes_strict) %>%
+  group_by(assay) %>%
+  summarize(nDown = sum(adj.P.Val < 0.05 & logFC < 0), nUp = sum(adj.P.Val < 0.05 & logFC > 0), nGenes = length(adj.P.Val)) %>%
+  arrange(nGenes) %>%
+  data.frame
 
+ggplot(tab) +
+  geom_bar(aes(assay, nUp), stat="identity", fill="red3") + 
+  geom_bar(aes(assay, -nDown), stat="identity", fill="blue3") + 
+  theme_classic() +
+  theme(aspect.ratio=1) +
+  ylab("# DEGs") +
+  coord_flip() 
 
+ topTable(res.dl, coef="age", number=Inf) %>%
+  as_tibble %>%
+  filter(! ID %in% genes_strict) %>%
+  filter(assay == cellType) %>%
+  head %>%
+  data.frame
 
+# Gene increase with age in liberal, but not included in strict
+geneID = "ENSG00000128309"
 
+par(pty="s")
+plot(df_merge$age, df_merge[[geneID]])
+# plot(ENSG00000128309 ~ age, df_merge_strict)
 
+nGeneReads = assay(pb, cellType)[geneID,]
+plot(pb$age, nGeneReads)
 
-
-
-
-
-
-
-
-
-
-
-
+nReads = colSums(assay(pb, cellType))
+plot(pb$age, log2((nGeneReads+.25) / (nReads/1e6)))
+```
 
 
 
