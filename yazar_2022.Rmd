@@ -80,7 +80,7 @@ res.proc
 details(res.proc)
 ```
 
-```{r voom.plot, fig.width=7, fig.height=20}
+```{r voom.plot, fig.width=8, fig.height=24}
 plotVoom(res.proc)
 ```
 
@@ -88,7 +88,7 @@ plotVoom(res.proc)
 vp.lst <- fitVarPart(res.proc, form, BPPARAM=param)
 ```
 
-```{r plotVarPart, fig.width=7, fig.height=20}
+```{r plotVarPart, fig.width=8, fig.height=24}
 plotVarPart(vp.lst, label.angle = 60)
 ```
 
@@ -96,9 +96,54 @@ plotVarPart(vp.lst, label.angle = 60)
 res.dl <- dreamlet(res.proc, form, BPPARAM=param)
 ```
 
-```{r plotVolcano, fig.width=7, fig.height=20}
+```{r plotVolcano, fig.width=8, fig.height=24}
 plotVolcano(res.dl, coef = "age", nGenes=1, scales = "free_y") 
 ```
+
+```{r topTable}
+topTable(res.dl, coef="age", number=Inf) %>%
+  as_tibble %>%
+    group_by(assay) %>%
+    summarize(nDown = sum(adj.P.Val < 0.05 & logFC < 0), nUp = sum(adj.P.Val < 0.05 & logFC > 0), nGenes = length(adj.P.Val)) %>%
+    arrange(nGenes) %>%
+    data.frame
+```
+
+
+```{r focus}
+target = "naive thymus-derived CD8-positive, alpha-beta T cell"
+
+topTable(res.dl, coef="age", number=Inf) %>%
+  as_tibble %>%
+  filter(assay == target) %>%
+  head %>%
+  data.frame
+
+df_merge <- extractData(res.proc, target)
+
+
+plot(ENSG00000187514 ~ age, df_merge)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
