@@ -73,14 +73,14 @@ param = SnowParam(12)
 # form = ~ age + (1|sex) + (1|pool_number) 
 form = ~ age + sex
 
-res.proc <- processAssays(pb, form, BPPARAM=param)
+res.proc <- processAssays(pb, form, BPPARAM=param, min.cells=1, min.count=1, min.prop=0.1)
 
 res.proc
 
 details(res.proc)
 ```
 
-```{r voom.plot, fig.width=8, fig.height=24}
+```{r voom.plot, fig.width=7, fig.height=20}
 plotVoom(res.proc)
 ```
 
@@ -88,7 +88,7 @@ plotVoom(res.proc)
 vp.lst <- fitVarPart(res.proc, form, BPPARAM=param)
 ```
 
-```{r plotVarPart, fig.width=8, fig.height=24}
+```{r plotVarPart, fig.width=7, fig.height=20}
 plotVarPart(vp.lst, label.angle = 60)
 ```
 
@@ -96,7 +96,7 @@ plotVarPart(vp.lst, label.angle = 60)
 res.dl <- dreamlet(res.proc, form, BPPARAM=param)
 ```
 
-```{r plotVolcano, fig.width=8, fig.height=24}
+```{r plotVolcano, fig.width=7, fig.height=20}
 plotVolcano(res.dl, coef = "age", nGenes=1, scales = "free_y") 
 ```
 
