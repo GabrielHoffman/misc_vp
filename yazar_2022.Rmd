@@ -84,6 +84,11 @@ details(res.proc)
 plotVoom(res.proc)
 ```
 
+
+```{r strict}
+res.proc.strict <- processAssays(pb, form)
+```
+
 ```{r fitVarPart}
 vp.lst <- fitVarPart(res.proc, form, BPPARAM=param)
 ```
@@ -100,31 +105,54 @@ res.dl <- dreamlet(res.proc, form, BPPARAM=param)
 plotVolcano(res.dl, coef = "age", nGenes=1, scales = "free_y") 
 ```
 
+The fraction of 'naive thymus-derived CD8-positive, alpha-beta T cell' drops from 20% to <0.1%.  This is a dramatic change.
+```{r cell.freq}
+counts = cellCounts(pb)
+fracs = counts / rowSums(counts)
+
+cellType = "naive thymus-derived CD8-positive, alpha-beta T cell"
+
+par(pty="s")
+plot( 100*fracs[,cellType] ~ pb$age, ylab="Cell percentage (CD8+, alpha-beta T cell) [log10 scale]", xlab="Age", log='y')
+
+nReads = colSums(assay(pb, cellType))
+plot( 100*fracs[,cellType] ~ nReads, ylab="Cell percentage (CD8+, alpha-beta T cell) [log10 scale]", xlab="nReads", log='xy')
+
+plot( nReads ~ pb$age, xlab="Age", log='y')
+```
+
+
 ```{r topTable}
-topTable(res.dl, coef="age", number=Inf) %>%
+tab = topTable(res.dl, coef="age", number=Inf) %>%
   as_tibble %>%
     group_by(assay) %>%
     summarize(nDown = sum(adj.P.Val < 0.05 & logFC < 0), nUp = sum(adj.P.Val < 0.05 & logFC > 0), nGenes = length(adj.P.Val)) %>%
     arrange(nGenes) %>%
     data.frame
+
+ggplot(tab) +
+  geom_bar(aes(assay, nUp), stat="identity", fill="red3") + 
+  geom_bar(aes(assay, -nDown), stat="identity", fill="blue3") + 
+  theme_classic() +
+  theme(aspect.ratio=1) +
+  ylab("# DEGs") +
+  coord_flip() 
 ```
 
 
 ```{r focus}
-target = "naive thymus-derived CD8-positive, alpha-beta T cell"
+cellType = "naive thymus-derived CD8-positive, alpha-beta T cell"
 
 topTable(res.dl, coef="age", number=Inf) %>%
   as_tibble %>%
-  filter(assay == target) %>%
+  filter(assay == cellType) %>%
   head %>%
   data.frame
 
-df_merge <- extractData(res.proc, target)
+df_merge <- extractData(res.proc, cellType)
 
-
+par(pty="s")
 plot(ENSG00000187514 ~ age, df_merge)
-
-
 ```
 
 
