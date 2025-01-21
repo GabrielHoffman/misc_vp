@@ -260,3 +260,20 @@ plotVolcano(res.dl, coef = "age", nGenes=1, scales = "free_y")
 
 
 
+```{r topTable2}
+tab = topTable(res.dl, coef="age", number=Inf) %>%
+  as_tibble %>%
+  group_by(assay) %>%
+  summarize(nDown = sum(adj.P.Val < 0.05 & logFC < 0), nUp = sum(adj.P.Val < 0.05 & logFC > 0), nGenes = length(adj.P.Val)) %>%
+  arrange(nGenes) %>%
+  data.frame
+
+ggplot(tab) +
+  geom_bar(aes(assay, nUp), stat="identity", fill="red3") + 
+  geom_bar(aes(assay, -nDown), stat="identity", fill="blue3") + 
+  theme_classic() +
+  theme(aspect.ratio=1) +
+  ylab("# DEGs") +
+  coord_flip() 
+```
+
