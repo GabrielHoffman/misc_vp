@@ -66,7 +66,6 @@ rm(sce)
 ```
 
 
-
 ```{r voom}
 param = SnowParam(12)
 
@@ -207,6 +206,57 @@ plot(pb$age, log2((nGeneReads+.25) / (nReads/1e6)))
 
 
 
+
+
+
+```{r voom2}
+
+df_cells = cellCounts(pb) %>%
+  as.data.frame %>%
+  rownames_to_column("donor_id") %>%
+  as_tibble %>%
+  pivot_longer(!donor_id) %>%
+  rename(nCells = value, cell_type=name)
+
+metadata(pb)$aggr_means = metadata(pb)$aggr_means %>%
+    left_join(df_cells)
+
+param = SnowParam(12)
+
+# form = ~ age + (1|sex) + (1|pool_number) 
+form = ~ age + sex + log(nCells)
+
+res.proc <- processAssays(pb, form, BPPARAM=param)
+
+res.proc
+
+details(res.proc)
+```
+
+```{r voom.plot2, fig.width=7, fig.height=20}
+plotVoom(res.proc)
+```
+
+
+```{r strict2}
+res.proc.strict <- processAssays(pb, form)
+```
+
+```{r fitVarPart2}
+vp.lst <- fitVarPart(res.proc, form, BPPARAM=param)
+```
+
+```{r plotVarPart2, fig.width=7, fig.height=20}
+plotVarPart(vp.lst, label.angle = 60)
+```
+
+```{r dreamlet2}
+res.dl <- dreamlet(res.proc, form, BPPARAM=param)
+```
+
+```{r plotVolcano2, fig.width=7, fig.height=20}
+plotVolcano(res.dl, coef = "age", nGenes=1, scales = "free_y") 
+```
 
 
 
