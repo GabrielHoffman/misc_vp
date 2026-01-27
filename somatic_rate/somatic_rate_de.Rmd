@@ -19,8 +19,9 @@ params:
 
 <!--- 
 
-cd /hpc/users/hoffmg01/work/somatic_rate
+cd /hpc/users/hoffmg01/work/misc_vp/somatic_rate
 ml git pandoc
+R
 system("git pull")
 
 rmarkdown::render("somatic_rate_de.Rmd")
@@ -48,7 +49,7 @@ library(dreamlet)
 
 ```{r load.rate}
 # Load estimated somatic rate
-df = readRDS("PsychAD_SMrate_poolID.rds") %>%
+df = readRDS("/hpc/users/hoffmg01/work/somatic_rate/PsychAD_SMrate_poolID.rds") %>%
       as_tibble
 
 # Evaluate correlation across technical replicates
