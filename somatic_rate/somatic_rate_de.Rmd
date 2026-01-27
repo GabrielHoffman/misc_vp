@@ -88,7 +88,7 @@ res %>%
 
 
 # Differential expression
-```{r processAssays}
+```{r processAssays, cache.lazy=FALSE}
 # read Pseudobulk
 file = "/sc/arion/projects/psychAD/NPS-AD/freeze2_rc/pseudobulk/FULL_2024-02-01_18_49_PB_SubID_class.RDS"
 pb = readRDS(file)
@@ -112,6 +112,7 @@ metadata(pb)$aggr_means$SomaticRate[1:3]
 formula = ~ scale(Age) + Sex + scale(PMI) + log(n_genes) + percent_mito + mito_genes + ribo_genes + mito_ribo 
 
 res.proc <- processAssays(pb, formula)
+rm(pb)
 ```
 
 ```{r dreamlet}
