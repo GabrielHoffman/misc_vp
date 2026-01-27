@@ -22,8 +22,9 @@ params:
 cd /hpc/users/hoffmg01/work/misc_vp/somatic_rate
 ml git pandoc
 R
-system("git pull")
 
+
+system("git pull")
 rmarkdown::render("somatic_rate_de.Rmd")
 
 
@@ -58,6 +59,8 @@ library(lme4)
 library(variancePartition)
 library(ggplot2)
 library(dreamlet)
+library(zenith)
+RhpcBLASctl::omp_set_num_threads(4)
 })
 ```
 
@@ -116,41 +119,81 @@ res.proc <- processAssays(pb, formula)
 rm(pb)
 ```
 
-```{r dreamlet}
-formula.dreamlet = update(formula, ~ . + SomaticRate + c11x)
+
 
 # run dreamlet
-fit = dreamlet( res.proc, formula.dreamlet)
+```{r dreamlet}
+fitList = list()
+
+form = update(formula, ~ . + SomaticRate + c11x)
+fitList[["SomaticRate"]] = dreamlet( res.proc, form)
+
+form = update(formula, ~ . + SomaticRate*c11x)
+fitList[["SomaticRate:Dx"]] = dreamlet( res.proc, form)
+
+form = update(formula, ~ . + SomaticRate*scale(Age))
+fitList[["SomaticRate:Age"]] = dreamlet( res.proc, form)
 ```
 
-```{r results, cache=FALSE}
-tab = topTable(fit, "SomaticRate", number=Inf) %>%
-  as_tibble
 
-tab %>%
-  group_by(assay) %>%
+
+
+
+```{r results, cache=FALSE}
+tab1 = topTable(fitList[["SomaticRate"]], 
+  "SomaticRate", number=Inf) %>%
+  as_tibble %>%
+  mutate(test = "SomaticRate")
+
+tab2 = topTable(fitList[["SomaticRate:Dx"]], 
+  "SomaticRate:c11x.L", number=Inf) %>%
+  as_tibble %>%
+  mutate(test = "SomaticRate:Dx")
+
+tab3 = topTable(fitList[["SomaticRate:Age"]], 
+  "scale(Age):SomaticRate", number=Inf) %>%
+  as_tibble %>%
+  mutate(test = "SomaticRate:Age")
+
+bind_rows(tab1, tab2, tab3) %>%
+  group_by(test, assay) %>%
   summarize(nFDR = sum(adj.P.Val < 0.05)) %>%
   ggplot(aes(nFDR, assay)) +
     geom_bar(stat="identity") +
     theme_classic() +
-    scale_x_continuous(limits=c(0, NA))
+    theme(aspect.ratio=1, legend.position="none") +
+    scale_x_continuous(limits=c(0, NA)) +
+    facet_wrap(~test)
 ```
 
-```{r zenith, cache=FALSE}
-library(zenith)
-go.gs <- get_GeneOntology("CC", to = "SYMBOL")
+```{r zenith}
+go.gs <- get_GeneOntology(c("BP", "MF", "CC"), to = "SYMBOL")
 
-res_zenith <- zenith_gsa(fit, go.gs, "SomaticRate") %>%
-  as_tibble
+res.zen1 = zenith_gsa(fitList[["SomaticRate"]], "SomaticRate") %>%
+  as_tibble %>%
+  mutate(test = "SomaticRate")
 
+res.zen2 = zenith_gsa(fitList[["SomaticRate:Dx"]], "SomaticRate:c11x.L") %>%
+  as_tibble %>%
+  mutate(test = "SomaticRate:Dx")
 
-
+res.zen3 = zenith_gsa(fitList[["SomaticRate:Age"]], "scale(Age):SomaticRate") %>%
+  as_tibble %>%
+  mutate(test = "SomaticRate:Age")
 ```
 
 ```{r plot.zenith, fig.height=12, fig.width=10, cache=FALSE}
-res_zenith %>%
+res.zen1 %>%
   filter(NGenes < 2000) %>%
-  plotZenithResults(2, 1)
+  plotZenithResults(10, 1) + ggtitle("SomaticRate")
+
+res.zen2 %>%
+  filter(NGenes < 2000) %>%
+  plotZenithResults(10, 1) + ggtitle("SomaticRate:Dx")
+
+res.zen3 %>%
+  filter(NGenes < 2000) %>%
+  plotZenithResults(10, 1) + ggtitle("SomaticRate:Age")
 ```
 
 
