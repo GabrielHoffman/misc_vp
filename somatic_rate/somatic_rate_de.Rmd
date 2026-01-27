@@ -35,6 +35,20 @@ scp minerva:"/hpc/users/hoffmg01/work/somatic_rate/somat*" .
 --->
 
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  dev = c("png", "pdf"),
+  package.startup.message = FALSE,
+  cache = TRUE,
+  cache.lazy = TRUE)
+```
+
+
 # Differential expression based on somatic rate
 ```{r load.packages}
 suppressPackageStartupMessages({
