@@ -21,6 +21,7 @@ R
 system("git pull")
 rmarkdown::render("somatic_rate_de.Rmd")
 
+
 \cp -f /hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de.html ~/www/
 \cp -fr /hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de_files ~/www/
 
@@ -158,7 +159,7 @@ bind_rows(tab1, tab2, tab3) %>%
     geom_bar(stat="identity") +
     theme_classic() +
     theme(aspect.ratio=1, legend.position="none") +
-    scale_x_continuous(limits=c(0, NA)) +
+    scale_x_continuous(limits=c(0, NA), expand=c(0,0)) +
     facet_wrap(~test, scales="free_x")
 ```
 
