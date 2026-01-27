@@ -92,22 +92,10 @@ metadata(pb)$aggr_means = metadata(pb)$aggr_means %>%
 metadata(pb)$aggr_means$SomaticRate[1:3]
 
 # Account for AD, SCZ, PD, Dementia
-X = with(colData(pb), data.frame(c11x,c10x,c33x,r09x))
-
-res = unlist(apply(X, 1, function(x){
-  if( all(is.na(x)) ) return("NA")
-  if( all( x[!is.na(x)] == "Control") ) return("Control")
-  if( !is.na(x['c11x']) && x['c11x'] == "AD" ) return("AD")
-  if( !is.na(x['c10x']) && x['c10x'] == "SCZ" ) return("SCZ")
-  if( !is.na(x['c33x']) ) return(x['c33x'])
-  if( !is.na(x['r09x'])) return(x['r09x'])
-  return(NA)
-  } ))
-
-pb$DiseaseStatus = res
+# X = with(colData(pb), data.frame(c11x,c10x,c33x,r09x))
 
 # voom-style normalization
-formula = ~ scale(Age) + Sex + scale(PMI) + log(n_genes) + percent_mito + mito_genes + ribo_genes + mito_ribo + DiseaseStatus #+ (1|Brain_bank)
+formula = ~ scale(Age) + Sex + scale(PMI) + log(n_genes) + percent_mito + mito_genes + ribo_genes + mito_ribo 
 
 res.proc <- processAssays(pb, formula)
 ```
