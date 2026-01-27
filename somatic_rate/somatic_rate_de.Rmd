@@ -7,13 +7,7 @@ output:
   html_document:
     toc: true
     smart: true
-    self_contained: false
-params:
-  dataset: NULL
-  variable_type: NULL
-  ctst_key: NULL
-  AnnoLevel: NULL
-  SampleLevel: NULL
+    self_contained: true
 ---
 
 
@@ -169,15 +163,15 @@ bind_rows(tab1, tab2, tab3) %>%
 ```{r zenith}
 go.gs <- get_GeneOntology(c("BP", "MF", "CC"), to = "SYMBOL")
 
-res.zen1 = zenith_gsa(fitList[["SomaticRate"]], "SomaticRate") %>%
+res.zen1 = zenith_gsa(fitList[["SomaticRate"]], go.gs, "SomaticRate") %>%
   as_tibble %>%
   mutate(test = "SomaticRate")
 
-res.zen2 = zenith_gsa(fitList[["SomaticRate:Dx"]], "SomaticRate:c11x.L") %>%
+res.zen2 = zenith_gsa(fitList[["SomaticRate:Dx"]], go.gs, "SomaticRate:c11x.L") %>%
   as_tibble %>%
   mutate(test = "SomaticRate:Dx")
 
-res.zen3 = zenith_gsa(fitList[["SomaticRate:Age"]], "scale(Age):SomaticRate") %>%
+res.zen3 = zenith_gsa(fitList[["SomaticRate:Age"]], go.gs, "scale(Age):SomaticRate") %>%
   as_tibble %>%
   mutate(test = "SomaticRate:Age")
 ```
