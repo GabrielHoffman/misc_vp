@@ -21,6 +21,7 @@ R
 system("git pull")
 rmarkdown::render("somatic_rate_de.Rmd")
 
+\cp -f /hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de.html ~/www/
 
 
 rsync -avzP minerva:"/hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de_files /hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de.html" .
@@ -46,7 +47,7 @@ knitr::opts_chunk$set(
 
 
 # Differential expression based on somatic rate
-```{r load.packages}
+```{r load.packages, cache=FALSE}
 suppressPackageStartupMessages({
 library(tidyverse)
 library(lme4)
