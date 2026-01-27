@@ -116,7 +116,7 @@ rm(pb)
 
 
 # run dreamlet
-```{r dreamlet}
+```{r dreamlet, cache.lazy=FALSE}
 fitList = list()
 
 form = update(formula, ~ . + SomaticRate + c11x)
