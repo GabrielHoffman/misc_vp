@@ -32,8 +32,7 @@ scp minerva:"/hpc/users/hoffmg01/work/somatic_rate/somat*" .
 
 
 
-
-```
+--->
 
 
 # Differential expression based on somatic rate
@@ -102,10 +101,10 @@ res.proc <- processAssays(pb, formula)
 ```
 
 ```{r dreamlet}
-formula = update(formula, ~ . + SomaticRate)
+formula.dreamlet = update(formula, ~ . + SomaticRate)
 
 # run dreamlet
-fit = dreamlet( res.proc, formula)
+fit = dreamlet( res.proc, formula.dreamlet)
 ```
 
 ```{r results}
@@ -115,8 +114,6 @@ tab = topTable(fit, "SomaticRate", number=Inf) %>%
 tab %>%
   group_by(assay) %>%
   summarize(nFDR = sum(adj.P.Val < 0.05))
-
-saveRDS( tab, file="somatic_rate_DE.RDS")
 ```
 
 ```{r zenith}
@@ -132,13 +129,18 @@ res_zenith %>%
   filter(assay == "Oligo") %>%
   data.frame %>%
   head(20)
+```
 
-
-saveRDS( res_zenith, file="somatic_rate_DE_genesets.RDS")
+```{r plot.zenith}
+plotZenithResults(res_zenith, 5, 1)
 ```
 
 
 
+<!--- 
+saveRDS( tab, file="somatic_rate_DE.RDS")
+saveRDS( res_zenith, file="somatic_rate_DE_genesets.RDS")
 
+--->
 
 
