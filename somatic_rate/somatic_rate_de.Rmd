@@ -116,22 +116,26 @@ rm(pb)
 ```
 
 ```{r dreamlet}
-formula.dreamlet = update(formula, ~ . + SomaticRate)
+formula.dreamlet = update(formula, ~ . + SomaticRate + c11x)
 
 # run dreamlet
 fit = dreamlet( res.proc, formula.dreamlet)
 ```
 
-```{r results}
+```{r results, cache=FALSE}
 tab = topTable(fit, "SomaticRate", number=Inf) %>%
   as_tibble
 
 tab %>%
   group_by(assay) %>%
-  summarize(nFDR = sum(adj.P.Val < 0.05))
+  summarize(nFDR = sum(adj.P.Val < 0.05)) %>%
+  ggplot(aes(nFDR, assay)) +
+    geom_bar(stat="identity") +
+    theme_classic() +
+    scale_x_continuous(limits=c(0, NA))
 ```
 
-```{r zenith}
+```{r zenith, cache=FALSE}
 library(zenith)
 go.gs <- get_GeneOntology("CC", to = "SYMBOL")
 
@@ -146,8 +150,8 @@ res_zenith %>%
   head(20)
 ```
 
-```{r plot.zenith}
-plotZenithResults(res_zenith, 5, 1)
+```{r plot.zenith, fig.height=20, cache=FALSE}
+plotZenithResults(res_zenith, 10, 1)
 ```
 
 
