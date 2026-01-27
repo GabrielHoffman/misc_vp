@@ -22,6 +22,7 @@ system("git pull")
 rmarkdown::render("somatic_rate_de.Rmd")
 
 \cp -f /hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de.html ~/www/
+\cp -fr /hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de_files ~/www/
 
 
 rsync -avzP minerva:"/hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de_files /hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de.html" .
@@ -134,7 +135,7 @@ fitList[["SomaticRate:Age"]] = dreamlet( res.proc, form)
 
 
 
-```{r results, cache=FALSE}
+```{r results, cache=FALSE, fig.height=4}
 tab1 = topTable(fitList[["SomaticRate"]], 
   "SomaticRate", number=Inf) %>%
   as_tibble %>%
@@ -158,7 +159,7 @@ bind_rows(tab1, tab2, tab3) %>%
     theme_classic() +
     theme(aspect.ratio=1, legend.position="none") +
     scale_x_continuous(limits=c(0, NA)) +
-    facet_wrap(~test)
+    facet_wrap(~test, scales="free_x")
 ```
 
 ```{r zenith}
