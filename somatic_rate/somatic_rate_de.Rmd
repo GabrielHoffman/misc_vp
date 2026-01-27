@@ -28,7 +28,8 @@ rmarkdown::render("somatic_rate_de.Rmd")
 
 
 
-scp minerva:"/hpc/users/hoffmg01/work/somatic_rate/somat*" .
+rsync -avzP minerva:"/hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de_files /hpc/users/hoffmg01/work/misc_vp/somatic_rate/somatic_rate_de.html" .
+
 
 
 
@@ -142,16 +143,14 @@ go.gs <- get_GeneOntology("CC", to = "SYMBOL")
 res_zenith <- zenith_gsa(fit, go.gs, "SomaticRate") %>%
   as_tibble
 
-res_zenith %>%
-  filter(NGenes < 1000) %>%
-  arrange(FDR) %>%
-  filter(assay == "Oligo") %>%
-  data.frame %>%
-  head(20)
+
+
 ```
 
-```{r plot.zenith, fig.height=20, cache=FALSE}
-plotZenithResults(res_zenith, 10, 1)
+```{r plot.zenith, fig.height=12, fig.width=10, cache=FALSE}
+res_zenith %>%
+  filter(NGenes < 2000) %>%
+  plotZenithResults(2, 1)
 ```
 
 
