@@ -1,0 +1,263 @@
+---
+title: "Analysis of REAP-seq data"
+subtitle: 'REAP-seq and schizophrenia'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r format(Sys.time())`"
+documentclass: article
+---
+
+<!---
+
+
+
+
+rmarkdown::render("REAP_analysis.Rmd")
+
+
+
+
+
+---> 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  error = FALSE,
+  tidy = FALSE,
+  fig.height = 12,
+  fig.width = 10,
+  dev = c("png", "pdf"),
+  cache = TRUE,
+  cache.lazy = TRUE
+)
+```
+
+```{r define.functions}
+plot_ddrtree = function(ddr_result, labels, cols, randomize = FALSE, ...){
+
+  # 1. Plot the reduced data points (Z)
+  labels = as.factor(labels)
+
+  if( randomize ){
+    i = sample.int(length(labels))
+  }else{
+    i = seq(length(labels))
+  }
+
+  plot(t(ddr_result$Z)[i,], col = cols[labels][i],  
+       xlab = "Component 1", ylab = "Component 2",...)
+  legend("topright", fill=cols, legend=levels(labels))
+}
+
+learn_trajectory = function(ddr_result){
+
+  library(igraph)
+
+  # 1. Get coordinates of tree nodes (Y) and the adjacency matrix (stree)
+  node_coords <- t(ddr_result$Y)
+  adj_matrix <- ddr_result$stree
+
+  # 2. Create a weighted graph
+  g <- graph_from_adjacency_matrix(adj_matrix, mode = "undirected", weighted = TRUE)
+
+  # 3. Update weights with actual Euclidean distances between connected nodes
+  edges <- as_edgelist(g)
+  weights <- sapply(1:nrow(edges), function(i) {
+    u <- node_coords[edges[i,1], ]
+    v <- node_coords[edges[i,2], ]
+    sqrt(sum((u - v)^2)) # Euclidean distance
+  })
+  E(g)$weight <- weights
+
+  # 4. Pick a root node (e.g., node 1, or find the one with the minimum X coordinate)
+  root_node <- 3 
+
+  # 5. Calculate shortest path distance from root to all other nodes
+  node_pseudotime <- distances(g, v = root_node, to = V(g), weights = E(g)$weight)
+
+  # 6. Map each cell (Z) to its nearest node (Y)
+  # DDRTree provides a mapping matrix 'R' (soft assignment)
+  # We take the most likely node for each cell
+  cell_to_node <- apply(ddr_result$stree, 2, which.max)
+
+  # 7. Assign pseudotime to cells
+  cell_pseudotime <- node_pseudotime[cell_to_node]
+
+  # Normalize to a 0-100 scale if desired
+  cell_pseudotime_norm <- 100 * (cell_pseudotime - min(cell_pseudotime)) / diff(range(cell_pseudotime))
+
+  ddr_result$pseudotime = cell_pseudotime_norm
+  ddr_result
+}
+
+plot_trajectory = function(ddr_result, gradient = terrain.colors(100)){
+
+  library(plotfunctions)
+  
+  col = gradient[as.numeric(cut(ddr_result$pseudotime, length(gradient)))]
+
+  plot(t(ddr_result$Z), 
+    col = col, 
+    pch = 16, 
+    xlab = "Component 1", 
+    ylab = "Component 2")
+
+  # 2. Extract and plot the tree edges
+  edges <- which(as.matrix(ddr_result$stree) != 0, arr.ind = TRUE)
+  for(i in 1:nrow(edges)) {
+    segments(
+      ddr_result$Y[1, edges[i,1]], 
+      ddr_result$Y[2, edges[i,1]],
+      ddr_result$Y[1, edges[i,2]], 
+      ddr_result$Y[2, edges[i,2]], 
+      lwd = 2, col = "black")
+  }
+  
+  gradientLegend(valRange = c(0, 100), 
+    color = terrain.colors(100), 
+    side = 4, # Position on the right side
+    length = 0.3, # Adjust length as proportion of plot
+    inside = FALSE,
+    title = "Pseudotime")
+}
+```
+
+
+```{r load}
+library(DDRTree)
+library(ggplot2)
+library(tidyverse)
+library(fANCOVA)
+
+df = readRDS("~/Downloads/AAb_min2_expObj6653x1319.RDs")
+
+keep = rowSums(df$counts) > 20
+```
+
+# PCA
+```{r PCA, fig.height=4}
+dcmp = prcomp(t(df$counts[keep,] ))
+cols = c("red", "green", "blue")
+
+par(cex=1, pty="s")
+plot(dcmp$x[,1:2], col=cols[df$samples$SCZ_Dx_2level], pch=20)
+```
+
+# Pseudotime
+```{r pseudotime}
+# Samples as columns
+# this is what monocle use underneath
+ddr_result = DDRTree( df$counts[keep,] )
+```
+
+```{r plots, fig.height=4, fig.width=10}
+par(mfrow=c(1,3), cex=1, pty="s")
+plot_ddrtree(ddr_result, 
+  labels = df$samples$SCZ_Dx_2level, 
+  cols = c("grey50", "red"),
+  randomize = TRUE, 
+  cex=1, pch=20 )
+
+ddr_result2 = learn_trajectory( ddr_result )
+
+plot_trajectory( ddr_result2 )
+
+# Pseudotime is correlected with total AAb burden
+# par(cex=3, pty='s')
+AAb.burden = colSums(df$counts[keep,])
+plot(ddr_result2$pseudotime, AAb.burden, xlab="Pseudotime", ylab = "AAb burden")
+fit <- loess( AAb.burden ~ ddr_result2$pseudotime, span=.8)
+j <- order(ddr_result2$pseudotime)
+lines(ddr_result2$pseudotime[j], fit$fitted[j], col = "red", lwd = 2)
+```
+
+
+
+```{r plots2, fig.height=4, fig.width=10}
+par(mfrow=c(1,3), cex=1, pty="s")
+
+data.frame(Dx = df$samples$SCZ_Dx_2level, 
+  Group = cut(ddr_result2$pseudotime, breaks=c(-1, 33, 74, 101))) %>%
+  mutate(Group = as.integer(factor(Group))) %>%
+  group_by(Group) %>%
+  summarize( SCZ = sum(Dx == "SCZ") / length(Dx)) %>%
+  mutate(Control = 1 - SCZ) %>%
+  column_to_rownames('Group') %>%
+  t %>%
+  as.matrix %>%
+  barplot( ylab = "Fraction of SCZ case", xlab="Clusters", ylim=c(0,1), col = c("red", "grey50"))
+
+boxplot(ddr_result2$pseudotime ~ df$samples$SCZ_Dx_2level, col = c("grey50", "red"), xlab="Diagnosis", ylab = "Non-linear AAb embedding score" )
+
+boxplot(AAb.burden ~ df$samples$SCZ_Dx_2level, col = c("grey50", "red"), xlab="Diagnosis", ylab = "AAb burden" )
+```
+
+
+```{r write_NEIS}
+data.frame(ID = rownames(df$samples),
+  Group = cut(ddr_result2$pseudotime, breaks=c(-1, 33, 74, 101))) %>%
+  write.table(file="NAES.tsv", sep="\t", quote=FALSE, row.names=FALSE)
+```
+
+
+```{r plots3, fig.height=4, fig.width=10}
+par(mfrow=c(1,3), cex=1, pty="s")
+ddr_mod = ddr_result2
+ddr_mod$pseudotime = as.integer(factor(cut(ddr_mod$pseudotime, breaks=c(-1, 33, 74, 101))))
+plot_trajectory( ddr_mod, gradient = c("red", "blue", "green"))
+```
+
+
+
+# Other plots
+```{r others, fig.height=12, fig.width=14}
+library(tidyverse)
+library(RColorBrewer)
+
+# examine association between SCZ and pseudotime
+# after account for each variables
+ids = colnames(df$samples)
+ids = setdiff(ids, c("study_day", "SCZ_Dx"))
+res = lapply( ids, function(id){
+  message(id)
+  x = df$samples[,id]
+  if( nlevels(x) == 1) return(NULL)
+  y = ddr_result2$pseudotime
+  fit = lm(y ~ x + df$samples$SCZ_Dx)
+  an = anova(fit)
+  pv = an$`Pr(>F)`[1:2]
+  data.frame(ID = id, Other = pv[1], Scz = pv[2])
+}) %>%
+  bind_rows %>%
+  filter(!is.na(Scz))
+
+res %>%
+  arrange(Scz) %>%
+  select(-Other)
+
+# all plots
+par(mfrow=c(3,4), cex=.8, pty="s")
+for(id in res$ID){
+  message(id)
+  labels = factor(df$samples[,id])
+  if( id == "age"){
+    cols = hcl.colors(nlevels(labels))
+  }else{
+  if( nlevels(labels) > 5) next
+    cols = brewer.pal(nlevels(labels), "Set1")
+  }
+  plot_ddrtree(ddr_result, 
+    labels = labels, 
+    cols, 
+    main = id )
+}
+```
+
+
+
+
+
+
