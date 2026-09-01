@@ -1,0 +1,187 @@
+---
+title: "Create batching independent of study design"
+subtitle: 'Randomized anti-clustering'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+documentclass: article
+output: 
+  html_document:
+  toc: true
+  smart: false
+---
+
+
+<!---
+
+rmarkdown::render("anti_clustering.Rmd")
+
+--->
+
+Sept 1, 2026
+
+Given a set of variables, create batch assignments that are as orthogonal as possible by minimizing the canonical correlation between batch and study design
+
+```{r min.cca}
+# https://chatgpt.com/c/6a96ba1d-bed4-83ea-9010-2b0ba644a9cd
+minimize_category_cca <- function(
+  Z, K,
+  sizes = NULL,
+  objective = c("largest", "sum_squared"),
+  n_starts = 20,
+  max_iter = 100,
+  seed = NULL
+) {
+  objective <- match.arg(objective)
+
+  Z <- as.matrix(Z)
+  Z <- scale(Z)
+  Z <- Z[, apply(Z, 2, sd) > 1e-10, drop = FALSE]
+  Z <- Z[,colSums(apply(Z, 2, is.na))==0, drop=FALSE]
+
+  n <- nrow(Z)
+
+  if (is.null(sizes)) {
+    sizes <- rep(n %/% K, K)
+    sizes[seq_len(n %% K)] <- sizes[seq_len(n %% K)] + 1L
+  }
+
+  stopifnot(length(sizes) == K, sum(sizes) == n)
+
+  if (!is.null(seed))
+    set.seed(seed)
+
+  qz <- qr(Z)
+  rank_z <- qz$rank
+  Qz <- qr.Q(qz)[, seq_len(rank_z), drop = FALSE]
+
+  cca_objective <- function(group) {
+    # K-1 full-rank category contrasts
+    X <- model.matrix(~ factor(group))[, -1, drop = FALSE]
+    X <- scale(X, center = TRUE, scale = FALSE)
+
+    # Orthonormal bases avoid explicit covariance inverses
+    qx <- qr(X)
+
+    rank_x <- qx$rank
+
+    if (rank_x == 0L || rank_z == 0L)
+      return(0)
+
+    Qx <- qr.Q(qx)[, seq_len(rank_x), drop = FALSE]
+
+    rho <- svd(crossprod(Qx, Qz), nu = 0, nv = 0)$d
+    rho <- pmin(rho, 1)
+
+    if (objective == "largest")
+      max(rho)
+    else
+      mean(rho^2)
+  }
+
+  best_group <- NULL
+  best_value <- Inf
+
+  for (start in seq_len(n_starts)) {
+    group <- sample(rep(seq_len(K), sizes))
+    value <- cca_objective(group)
+
+    for (iter in seq_len(max_iter)) {
+      improved <- FALSE
+      order_i <- sample.int(n)
+
+      for (i in order_i) {
+        candidates <- sample(which(group != group[i]))
+
+        for (j in candidates) {
+          proposal <- group
+          proposal[c(i, j)] <- proposal[c(j, i)]
+
+          proposal_value <- cca_objective(proposal)
+
+          if (proposal_value < value - 1e-10) {
+            group <- proposal
+            value <- proposal_value
+            improved <- TRUE
+            break
+          }
+        }
+
+        if (improved)
+          break
+      }
+
+      if (!improved)
+        break
+    }
+
+    if (value < best_value) {
+      best_value <- value
+      best_group <- group
+    }
+  }
+
+  list(
+    category = best_group,
+    objective = best_value,
+    category_sizes = tabulate(best_group, nbins = K),
+    criterion = objective
+  )
+}
+```
+
+```{r analysis}
+library(readxl)
+library(tidyverse)
+
+# read data
+df = read_xlsx("~/Downloads/study_design.xlsx") %>%
+  mutate(ID = as.character(ID))
+
+# study design
+form = ~ Diagnosis + region #+ ID
+# form = ~ 0 + ID + region + Age + Sex + PMI + Group
+# form = ~ 0 + ID 
+Z = model.matrix(form, df)
+
+# create batch assignments
+# use K = 8 batches
+fit <- minimize_category_cca(
+  Z,
+  K = 8,
+  objective = "sum_squared",
+  n_starts = 100,
+  seed = 1
+)
+
+table(LETTERS[fit$category])
+fit$objective
+
+# fit$category = rep(1:6, 4)
+
+# create design matrix
+data = LETTERS[fit$category] %>%
+  data.frame(Cat=., row.names=df$sID) %>%
+  cbind(df)
+
+X = model.matrix(~0+Cat, data)
+
+# confirm with CCA
+it = cancor(X, Z)
+mean(it$cor^2)
+
+# Batch assignments created here
+data %>%
+  select(Cat)
+
+# counts of Diagnosis within each Cat
+with(data, table(Cat, Diagnosis))
+
+# counts of region within each Cat
+with(data, table(Cat, region))
+
+# counts of ID within each Cat
+with(data, table(Cat, ID))
+```
+
+
+

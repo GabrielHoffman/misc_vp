@@ -98,18 +98,19 @@ library(CovTools)
 library(parallel)
 library(metafor)
  
-n = 100
-p = 15
+n = 50
+p = 20
 m = 1
 rho = .5
 # Sigma = as.matrix(bdiag(matrix(rho, p/2, p/2), matrix(rho, p/2, p/2)))
 Sigma = matrix(rho, p, p)
 diag(Sigma) = 1
  
-n_tests = 1000
+n_tests = 300
 
 res = mclapply( 1:n_tests, function(i){
 
+	cat(i, "\n")
 	RhpcBLASctl::omp_set_num_threads(1) 
 
 	X = matrix(rnorm(n*m), ncol=m)
@@ -144,31 +145,30 @@ res = mclapply( 1:n_tests, function(i){
 	df = do.call(rbind, df)
 
 	P = residuals(fit)
-	# lambda = corpcor::estimate.lambda(P, verbose=FALSE)
-	# lambda = CovEst.2010RBLW(scale(P))$rho
-	lambda = decorrelate::eclairs(P, compute="cor")$lambda
-	# lambda = ShrinkCovMat::shrinkcovmat.identity(t(scale(P)))$lambdahat
-
+	lambda = corpcor::estimate.lambda(P, verbose=FALSE)
+	
 	S = (1-lambda)*cor(P) + lambda*diag(diag(cor(P)), ncol(P))
-
 	# True correlction
 	# S = Sigma
 
 	nu = fit$df.residual[1]
 
 	p.LS.lambda = with(df, LS(beta, se, S))$p
-	p.LS.empirical.lambda.remaCor = with(df, remaCor::LS.empirical(beta, se, S, nu[1], n.mc.samples=1e3))$p
-	# p.LS.empirical.lambda = with(df, LS.empirical(beta, se, S, nu[1], n.mc.samples=1e3))$p
-	p.RE2C.lambda = with(df, RE2C(beta, se, S))$RE2Cp
+	p.LS.empirical.lambda.remaCor = remaCor::LS.empirical(df$beta, df$se, S, nu, n.mc.samples=1e3)$p
+	p.LS.emp = LS.emp.resid(df$beta, df$se, P, nu, n.mc.samples=1e3)$p
 
 	p.LS = with(df, LS(beta, se, cor(P)))$p
-	# p.LS.empirical = with(df, LS.empirical(beta, se, cor(P), nu[1], n.mc.samples=1e3))$p
-	p.RE2C= with(df, RE2C(beta, se, cor(P)))$RE2Cp
 
-	p.hotelling = with(df, hotelling(beta, diag(se) %*% cor(P) %*% diag(se), n))$p.value
+	# p.LS.empirical.lambda = with(df, LS.empirical(beta, se, S, nu[1], n.mc.samples=1e3))$p
+	# p.RE2C.lambda = with(df, RE2C(beta, se, S))$RE2Cp
+
+	# p.LS.empirical = with(df, LS.empirical(beta, se, cor(P), nu[1], n.mc.samples=1e3))$p
+	# p.RE2C = with(df, RE2C(beta, se, cor(P)))$RE2Cp
+
+	# p.hotelling = with(df, hotelling(beta, diag(se) %*% cor(P) %*% diag(se), n))$p.value
 
 	# fixed effects test
-	fema = with(df, rma(yi=beta, sei=se, method="EE"))
+	# fema = with(df, rma(yi=beta, sei=se, method="EE"))
 
 	data.frame(	i 			= i,
 				isDE		= isDE, 
@@ -180,14 +180,15 @@ res = mclapply( 1:n_tests, function(i){
 				p.meta_sidak = p.meta_sidak,
 				p.LS 		= p.LS,
 				# p.LS.empirical = p.LS.empirical,
-				p.RE2C = p.RE2C,
+				# p.RE2C = p.RE2C,
 				p.LS.lambda = p.LS.lambda,
 				# p.LS.empirical.lambda = p.LS.empirical.lambda,
 				p.LS.empirical.lambda.remaCor = p.LS.empirical.lambda.remaCor,
-				p.RE2C.lambda = p.RE2C.lambda,
-				p.hotelling = p.hotelling)#,
+				p.LS.emp = p.LS.emp)
+				# p.RE2C.lambda = p.RE2C.lambda,
+				# p.hotelling = p.hotelling)#,
 				# p.fixed = fema$pval )
-}, mc.cores=24)
+}, mc.cores=1)
 res = do.call(rbind, res)
 ```
 

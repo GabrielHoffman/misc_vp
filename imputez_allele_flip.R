@@ -99,7 +99,7 @@ z = df_GWAS$z.stat.final
 names(z) = df_GWAS$SNP
 
 
-windowSize = 300
+windowSize = 30
 
 idx = sample.int(nrow(df_GWAS), 1000)
 query = df_GWAS$SNP[idx]
@@ -126,6 +126,86 @@ ggplot(df, aes(z.observed, z.stat, color=r2.pred)) +
 	ylab("Imputed z-statistic")
 
 
+
+
+
+
+imputez.eclairs <- function(z, X, i, lambda = NULL,...) {
+  ecl <- eclairs(X[, -i], compute = "correlation", lambda = lambda,...)
+
+  g <- (1 - ecl$lambda) * cor(X[, -i, drop = FALSE], X[, i])
+
+  W <- decorrelate(g, ecl, alpha = -1, transpose = TRUE)
+
+  z_i <- crossprod(W, z[-i])
+
+  sigSq <- 1 - crossprod(W, decorrelate(W, ecl, transpose = TRUE, alpha = 1))
+
+  data.frame(
+    ID = names(z)[i],
+    z.stat = as.numeric(z_i),
+    sigSq = as.numeric(sigSq),
+    r2.pred = 1 - as.numeric(sigSq),
+    lambda = ecl$lambda
+  )
+}
+
+run_impute_geno2 = function(z, X, query, lambda = NULL, windowSize=200, quiet=FALSE){
+
+	if (!quiet) {
+		pb <- progress_bar$new(
+		format = "  imputing [:bar] :percent eta: :eta",
+		total = length(query), clear = FALSE, width = 60)
+	}
+
+	df = lapply( query, function(id){
+
+		# get SNP index and window
+		i = match(id, names(z))
+		idx = seq(max(1, i-windowSize), min(nrow(df_GWAS), i + windowSize))
+
+		# compute corrleation
+		X_sub = t(X[names(z)[idx],])
+		# Sigma = cora( X_sub )
+
+		# get location of target SNP
+		j = match(id, names(z)[idx])
+
+		# Impute
+		# res = imputez( z[idx], Sigma, j, lambda=.25)
+		# res2 = imputez.eclairs(z[idx], X_sub, j, lambda = 0.25)
+		res = imputez.eclairs(z[idx], X_sub, j)
+
+		res$z.observed = z[idx[j]]
+
+		if (!quiet) pb$tick()
+
+		tibble(res)
+		})
+	if (!quiet) pb$terminate()
+	bind_rows(df)
+}
+
+df = run_impute_geno2(z, X_geno, query,  windowSize = windowSize)
+
+# cor all 
+cor(df$z.observed, df$z.stat)
+
+# corr good quality
+with(df %>% filter(r2.pred > 0.8), cor(z.observed, z.stat))
+
+limits = max(abs(c(df$z.observed, df$z.stat)))
+
+ggplot(df, aes(z.observed, z.stat, color=r2.pred)) +
+	geom_point() +
+	theme_classic() +
+	theme(aspect.ratio=1) +
+	scale_color_gradient(high="black", low="red", limits=c(0,1)) +
+	geom_abline(intercept=0, slope=1) +
+	scale_x_continuous(limits=c(-limits, limits)) +
+	scale_y_continuous(limits=c(-limits, limits)) +
+	xlab("Observed z-statistic") +
+	ylab("Imputed z-statistic")
 
 
 

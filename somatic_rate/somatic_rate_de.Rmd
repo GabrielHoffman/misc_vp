@@ -196,8 +196,12 @@ res.zen3 %>%
 
 
 <!--- 
-saveRDS( tab, file="somatic_rate_DE.RDS")
-saveRDS( res_zenith, file="somatic_rate_DE_genesets.RDS")
+saveRDS( fitList, file="fitList.RDS")
+
+zenList = list("SomaticRate" = res.zen1, 
+  "SomaticRate:Dx" = res.zen2, 
+  "SomaticRate:Age" = res.zen3)
+saveRDS( zenList, file="zenList.RDS")
 
 --->
 

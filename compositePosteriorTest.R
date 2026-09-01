@@ -1,5 +1,21 @@
+# Gabriel Hoffman
+# Dec 4, 2023
+#
+# Perform composite test on results from mashr
 
 
+#' Perform composite test on results from mashr
+#' 
+#' Perform composite test evaluating the specificity of an effect.  Evalute the posterior probability that an a non-zero effect present in _all_ or _at least one_ condition in the inclusion set, but _no conditions_ in the exclusion set. 
+#' 
+#' @param x \code{"dreamlet_mash_result"} from \code{run_mash()}
+#' @param include array of conditions in the inclusion set
+#' @param exclude array of conditions in the exclusion set
+#' @param test evaluate the posterior probability of a non-zero effect in \code{"at least 1"} or \code{"all"} conditions
+#'
+#' @description The posterior probabilities for all genes and conditions is obtained as \code{1-lFSR}.  Let \code{prob} be an array storing results for one gene.  The probability that _no_ conditions in the exclusion set are non-zero is \code{prod(1 - prob[exclude])}. The probability that _all_ conditions in the inclusion set are non-zero is \code{prod(prob[include])}. The probability that _at least one_ condition in the inclusion set is non-zero is \code{1 - prod(1 - prob[include])}.  The composite test is the product of the probabilties computed from the inclusion and exclusion sets.
+#'
+#' @seealso \code{run_mash()}
 #' @examples
 #' library(muscat)
 #' library(mashr)
@@ -36,7 +52,7 @@
 #' prob = compositePosteriorTest(res_mash, include, exclude)
 #' 
 #' # examine the lFSR for top gene
-#' get_lfsr(x$model)[which.max(prob),,drop=FALSE]
+#' get_lfsr(res_mash$model)[which.max(prob),,drop=FALSE]
 #
 #' @export
 compositePosteriorTest = function( x, include, exclude, test = c("at least 1", "all")){
@@ -61,9 +77,6 @@ compositePosteriorTest = function( x, include, exclude, test = c("at least 1", "
 
 	stopifnot( all(include %in% colnames(prob)) )
 	stopifnot( all(exclude %in% colnames(prob)) )
-
-	# get probability of being correct sign
-	prob = 1 - get_lfsr(x$model)
 
 	# probability that *NO* cell types have a non-zero effect
 	prob_excl = apply(1 - prob[,exclude,drop=FALSE], 1, prod, na.rm=TRUE)

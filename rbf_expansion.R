@@ -49,6 +49,7 @@ rbf_basis = function(x, sigmaSq, K){
 }
 
 # Rcpp implementation
+library(Rcpp)
 sourceCpp(code = "
 #include <cmath>
 #include<Rcpp.h>
@@ -115,6 +116,8 @@ X2 = rbf_basis(y, 1, 8)
 crossprod(X1, X2)
 
 
+library(ggplot2)
+library(matrixStats)
 
 sigSq = 0.1
 N = 100

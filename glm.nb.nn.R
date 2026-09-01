@@ -96,6 +96,7 @@ gene_id = intersect(rownames(X_ref_norm), rownames(bulk.mtx))
 X = X_ref_norm[gene_id,c('alpha', 'beta', 'delta', 'gamma','acinar', 'ductal')]
 y = bulk.mtx[gene_id,3]
 
+# How does MUSIC weight genes?
 fit = glm.nb.nn(X, y, weights=log(y+2))
 
 

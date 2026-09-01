@@ -33,6 +33,13 @@ readLDMatrix = function( df_files, r2cutoff=0){
 		df_position = fread( df_files$BIM[i] )
 		colnames(df_position) = c("chrom", "name", "gmap", "position", "allele1", "allele2")
 
+		# remove variants with name '.'
+		df_position = df_position[!df_position$name == '.',]
+
+		# keep variants with unique names
+		dupID = df_position$name[duplicated(df_position$name)]
+		df_position = df_position[!(df_position$name %in% dupID),]
+
 		# read LD
 		# this does R-squared
 		if( r2cutoff == 0){
@@ -43,6 +50,11 @@ readLDMatrix = function( df_files, r2cutoff=0){
 		dfld = fread( cmd=cmd, sep=' ')
 		colnames(dfld) = c('SNP_A', 'SNP_B', "R")
 		dfld = dfld[!is.nan(dfld$R),]
+		dfld = dfld[!dfld$SNP_A == '.',]
+		dfld = dfld[!dfld$SNP_B == '.',]
+
+		dfld = dfld[!(dfld$SNP_A %in% dupID),]
+		dfld = dfld[!(dfld$SNP_B %in% dupID),]
 
 		# keep only variants in dfld
 		df_position = df_position[name %in% unique(c(dfld$SNP_A, dfld$SNP_B)),]
