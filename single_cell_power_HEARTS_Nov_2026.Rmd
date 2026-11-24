@@ -1,0 +1,349 @@
+---
+title: "Power for HEARTS SHARE-ME-seq grant"
+subtitle: 'for Panos'
+author: "Developed by [Gabriel Hoffman](http://gabrielhoffman.github.io/)"
+date: "Run on `r Sys.time()`"
+documentclass: article
+output: 
+  html_document:
+  toc: true
+  smart: false
+---
+
+
+<!---
+
+rmarkdown::render("single_cell_power_HEARTS_Nov_2026.Rmd"); 
+
+
+--->
+
+```{r load.packages, echo=FALSE, message=FALSE, results='hide'}
+library(ggplot2)
+library(tidyverse)
+library(xtable)
+library(kableExtra)
+library(knitr)
+library(data.table)
+library(pwr)
+```
+
+```{r knitr, echo=FALSE}
+suppressPackageStartupMessages(library(knitr))
+options(xtable.type="html")
+
+knitr::opts_chunk$set(
+  echo=TRUE,
+  warning=FALSE,
+  message=TRUE,
+  error = FALSE,
+  tidy = FALSE,
+  cache = FALSE,
+  cache.lazy = FALSE,
+  dev = c("png", "pdf"), 
+  fig.width=7, fig.height=7)
+
+options(markdown.HTML.stylesheet = 'css/custom.css')
+```
+
+```{r power.settings, results="asis"}
+settings = data.frame(
+	Type = c("Gene", "Chromatin access.", "CpG methyl."),
+	nFeatures = c(10, 100, 200)*1000,
+	n_cell_types = 20,
+	nSNPs = c(50, 10, 10)
+	)
+
+print(xtable(settings, type="html"), include.rownames=FALSE)
+```
+
+
+# Power to identify differences in proportion
+Given $C$ cells per individual, consider a cell type $i$ with proportion $p_i$.  The estimation cell proportion, $\hat{p_i}$, is based on observing $C$ cells, and the sampling variance of this fraction is $p_i(1-p_i)/C$.  Consider two subsets of the data with sample sizes $n_1$ and $n_2$.
+
+Power is based on the size of each of the two subsets, and Cohens d:
+$d = \frac{|\mu_1 - \mu_2|}{\sigma}$
+
+where $\sigma^2$ is the pooled variance:
+
+$\sigma^2 = \frac{(n_1-1)s^2_1 + (n_2-1)s^2_2}{n_1+n_2-2}$
+
+I have confirmed these curves with simulations. This assumes no cell type misclassification error.
+
+```{r power.analysis.proportions, fig.height=4, fig.width=12}
+n_samples = c(CTL = 200, AD=200)
+n_cells = 5000
+n_cells_max = 10000
+prop_diff = list(c(0.001, 0.002), c(0.0001, 0.0003), c(0.00001, 0.0001))
+n_cell_types = 20
+
+getPower = function(n1, n2, p1, p2, C, n_tests){
+	sSq1 = p1*(1-p1)/ C
+	sSq2 = p2*(1-p2)/ C
+
+	sigSq = ((n1-1)*sSq1 + (n2-1)*sSq2) / (n1 + n2 -2)
+	d = abs(p1 - p2)/sqrt(sigSq)
+
+	pwr.t2n.test(n1=n1, n2=n2, d=d, sig.level = 0.05/n_tests )
+}
+
+getPowerCurve = function(n1, n2){
+	# for each pair of proportions
+	lapply(prop_diff, function(prop){
+		p1 = prop[1]
+		p2 = prop[2]
+
+		# for each cell number
+		lapply( seq(10, n_cells_max, by = 3), function(C){
+			res = getPower(n1, n2, p1, p2, C, n_cell_types)
+			data.frame(n1, n2, p1, p2, C, d = res$d, power= res$power, delta=paste0(p1*100, '% to ', p2*100, '%'))
+			}) %>%
+		bind_rows
+		}) %>%
+	bind_rows
+}
+
+# for each disease
+res = lapply(names(n_samples)[-1], function(ID){
+	getPowerCurve(n_samples['CTL'], n_samples[ID])
+}) %>%
+bind_rows
+
+fig_cell_comp = ggplot(res, aes(C, power, color=delta)) + geom_line(size=1.3) + 
+	theme_bw(12) + 
+	theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + xlab("# of cells") +
+	ylim(0, 1) + 
+	geom_vline(xintercept=n_cells, color="black", linetype="dashed") + 
+	geom_hline(yintercept=0.8, color="red", linetype="dashed") + 
+	ylab("Power")
+fig_cell_comp
+```
+
+
+Power here is shown applying a Bonferroni correction for testing `r n_cell_types` cell types.
+
+## Get number of cells to get 80% power
+```{r, results="asis", echo=FALSE}
+# Sample size required to get 80% power
+res = data.table(res)
+res$Dataset = with(res, paste(delta))
+tab = res[,.SD[min(which(power>.80)),],by=Dataset]
+tab$Cells_per_individual = as.integer(tab$C)
+print(xtable(tab[,c('Dataset', 'Cells_per_individual', 'power')], type="html"), include.rownames=FALSE)
+```
+
+# Detectable changes
+```{r comp.delta, fig.height=6, cache=TRUE}
+n = 200
+n1 = n
+n2 = n
+n_cell_types = 20
+
+res <- 
+	lapply(c(1), function(frac){
+	lapply(c(.01, .05, .1), function(p1){
+		lapply(seq(p1^1.1, p1, length.out=10000), function(p2){
+			lapply(c(100, 500, 1000), function(C){
+			res = getPower(frac*n1, frac*n2, p1, p2, C, n_cell_types)
+			tibble(frac, n1, n2, p1, p2, C, d = res$d, power= res$power)
+		}) %>%
+		bind_rows
+	}) %>%
+	bind_rows
+}) %>%
+bind_rows
+}) %>%
+bind_rows
+
+res %>%
+	ggplot(aes(p1-p2, power, color=factor(C))) +
+		geom_line(size=2) +
+		theme_bw() +
+		theme(aspect.ratio=1) +
+		scale_x_continuous(limits=c(0, NA), expand=c(0,0))+	
+		scale_y_continuous(limits=c(0, 1.01), expand=c(0,0)) +
+		scale_color_discrete("# cells") +
+		facet_grid(frac~p1, scales="free_x") +
+		xlab("Absulute change in cell fraction") +
+		ylab("Power") +
+		geom_hline(yintercept=0.8, color="red", linetype="dashed")  
+
+res %>%
+	ggplot(aes(p1/p2, power, color=factor(C))) +
+		geom_line(size=2) +
+		theme_bw() +
+		theme(aspect.ratio=1) +
+		scale_x_continuous(limits=c(1, 1.2), expand=c(0,0))+	
+		scale_y_continuous(limits=c(0, 1.01), expand=c(0,0)) +
+		scale_color_discrete("# cells") +
+		facet_grid(~p1, scales="free_x") +
+		xlab("Relative change in cell fraction") +
+		ylab("Power") +
+		geom_hline(yintercept=0.8, color="red", linetype="dashed")  
+
+# res = expand.grid(
+# 	C = c(100, 500, 1000, 2000), 
+# 	p2 = seq(0, p1, length.out=1000)) %>%
+# 	tibble %>%
+# 	group_by(C, p2) %>%
+# 	summarize(getPower(n1, n2, p1, p2, C, n_cell_types))
+```
+
+## Get effect size with 80% power
+```{r comp.delta.table, results="asis", echo=FALSE}
+tab = res %>%
+	group_by(frac, p1, C) %>%
+	arrange(pmax(power, 0.8)) %>%
+	slice_head(n=1) %>%
+	mutate(delta = p1 - p2, FC = p1/p2)
+
+kable(tab, type="html", include.rownames=FALSE)
+```
+
+
+
+
+# Differential expression
+```{r pow2, fig.height=6}
+getPower = function(n1, n2, d, n_tests, rsq){
+	# pwr.t2n.test(n1=n1, n2=n2, d=d, sig.level = 0.05/n_tests )
+
+	# Compute n_Eff, need to divide by 2 becaues n is the number in each set
+	N_eff = 4 / (1/n1 + 1/n2)
+	pwr.t.test(n=N_eff/2 * rsq, d=d, sig.level = 0.05/n_tests )
+}
+
+getPowerCurve = function(n1, n2, n_tests, rsq){
+	# for each cell number
+	res = lapply( seq(0, 2.5, length.out=1000), function(delta){
+		res = getPower(n1, n2, delta, n_tests, rsq)
+		data.frame(n1, n2, d = res$d, rsq, power= res$power)
+		})
+	do.call("rbind", res)
+}
+
+res = lapply(c(1), function(frac){
+	lapply(1:nrow(settings), function(i){
+
+	n_tests = with(settings, nFeatures[i]*n_cell_types[i])
+	lapply(names(n_samples)[-1], function(ID){
+		lapply( c( .6, .7, .8, .9,1), function(rsq){
+			res = getPowerCurve(frac*n_samples['CTL'], frac*n_samples[ID], n_tests, rsq)
+			data.frame(Type = settings$Type[i], frac, res)
+		}) %>% 
+			bind_rows
+	}) %>% 
+		bind_rows
+})%>% 
+		bind_rows
+})%>% 
+		bind_rows
+
+res$rsq_text = with(res, factor(rsq, rev(sort(unique(rsq)))))
+res = res[order(res$rsq, decreasing=FALSE),]
+
+res %>%
+	mutate(Type = factor(Type,settings$Type)) %>%
+	ggplot(aes(d, power, color=rsq_text)) + 
+	geom_line(size=1.3) + 
+	theme_bw(12) + 
+	theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5)) + ylim(0, 1) + 
+	xlab("Cohen's d")  + 
+	scale_color_discrete(bquote(R^2)) + 
+	geom_hline(yintercept=0.8, color="red", linetype="dashed") + 
+	ylab("Power") +
+	xlim(0, 1) +
+	facet_grid(~Type)
+```
+
+Cohens $d = \frac{|\mu_1 - \mu_2|}{\sigma}$ is the effect size scaled by the within group standard deviation. Dashed line indicates 4000 cells
+
+## Get effect size with 80% power
+```{r tab3, results="asis", echo=FALSE}
+res = data.table(res)
+res$Dataset = with(res, paste(rsq, frac, Type))
+# Sample size required to get 80% power
+tab = res[,.SD[min(which(power>.80)),],by=Dataset]
+# print(xtable(tab[,c('rsq', 'power', 'd')], type="html"), include.rownames=FALSE)
+tab %>%
+	select(Type, frac, d, rsq) %>%
+	kable(type="html", include.rownames=FALSE)
+```
+
+
+
+<!---
+
+# Power for xQTL
+
+Consider $n$ samples where the response is measured with error so that the squared correlation between true and observed response is $R^2$.  Let a given SNP explain $f$% of the variance in the observed response.  Also note that if a SNP has a frequency $p$ and effect size $\beta$, the fraction of expression variation explained by the SNP is $2\beta^2 p(1-p)$  
+
+```{r power, cache=FALSE}
+n = 400
+rsq = .8
+
+getPower = function(n, rsq, f, n_tests){
+	pwr.r.test(n*rsq, r=sqrt(f), sig.level=0.05/n_tests)
+}
+
+res = lapply(1:nrow(settings), function(i){
+	n_tests = with(settings, nFeatures[i]*nSNPs[i]*n_cell_types[i])
+
+	# for each f value
+	lapply( seq(0, .151, length.out=500), function(f){
+		# for each rsq
+		lapply( c(.7, .8, .9, 1), function(rsq){
+			res = getPower(n, rsq, f, n_tests)
+			data.frame(Type = settings$Type[i], n, rsq, f, power=res$power)
+		}) %>% 
+		bind_rows
+	}) %>% 
+	bind_rows
+}) %>% 
+bind_rows
+
+res$rsq_text = with(res, factor(rsq, rev(sort(unique(rsq)))))
+res = res[order(res$rsq_text, decreasing=FALSE),]
+
+
+# Sample size required to get 80% power
+df_pwr_80 = res %>%
+	filter(rsq == 0.8) %>%
+	group_by(Type) %>%
+	summarize(f = f[min(which(power>.80))]) %>%
+	mutate(Type = factor(Type, settings$Type))
+
+
+df_pwr_80 %>%
+	ggplot(aes(f*100, Type, fill=Type, label=round(f*100, 1))) +
+		geom_col() + 
+		geom_text(hjust=-.2) +
+		theme_bw(16) + 
+		theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5), legend.position="none") +
+	xlab("Variance explained (%)") +
+	ylab("Assay") +
+	scale_x_continuous(lim=c(0, 16), expand=c(0,0))
+
+res %>%
+	mutate(Type = factor(Type, settings$Type)) %>%
+	ggplot(aes(f*100, power, color=rsq_text)) + 
+	geom_line(size=2) + 
+	theme_bw(16) + 
+	theme(aspect.ratio=1, plot.title = element_text(hjust = 0.5), legend.position="none") + 
+	xlab("Variance explained (%)") + 
+	scale_color_discrete(bquote(R^2)) + 
+	geom_hline(yintercept=0.8, color="red", linetype="dashed") +
+	geom_vline(aes(xintercept=f*100), data = df_pwr_80, color="blue", linetype="dashed") + 
+	scale_x_continuous(expand=c(0,0)) + 
+	scale_y_continuous(limits=c(0,1), expand=c(0,0.01)) + 
+	ylab("Power") +
+	facet_wrap(~ Type)
+```
+
+
+
+--->
+
+
+
+
